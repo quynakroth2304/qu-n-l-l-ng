@@ -8,17 +8,17 @@ import shutil
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# 1. CẤU HÌNH HỆ THỐNG V44 (ENHANCED UX)
+# 1. CẤU HÌNH HỆ THỐNG V43 (ENTERPRISE STABILITY + UI ENHANCED)
 # ==============================================================================
 st.set_page_config(
-    page_title="Hệ Thống Quản Lý V44", 
+    page_title="Hệ Thống Quản Lý V43", 
     layout="wide", 
     page_icon="🛡️", 
     initial_sidebar_state="expanded"
 )
 
 # --- THIẾT LẬP DATABASE VÀ THƯ MỤC ---
-DATABASE_FILE = "system_v44_stable.db"
+DATABASE_FILE = "system_v43_stable.db"
 STORAGE_DIRECTORY = "user_files"
 UPLOAD_DIRECTORY = "chat_uploads"
 
@@ -28,7 +28,7 @@ if not os.path.exists(STORAGE_DIRECTORY):
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)
 
-# --- CSS GIAO DIỆN NÂNG CAP (MESSENGER/ZALO STYLE) ---
+# --- CSS GIAO DIỆN CHUẨN (FIX LỖI HIỂN THỊ + MESSENGER STYLE) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -76,26 +76,24 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* KHUNG CHAT MỚI - GIỐNG MESSENGER/ZALO */
+    /* KHUNG CHAT NÂNG CẤP - MESSENGER/ZALO STYLE */
     .chat-container {
-        padding: 16px;
+        padding: 16px 20px;
         background: #ffffff;
         border-radius: 16px;
-        height: 75vh;
+        height: 78vh;
         overflow-y: auto;
         border: 1px solid #e2e8f0;
         display: flex;
         flex-direction: column;
-        gap: 8px;
     }
     
-    /* CUSTOM SCROLLBAR */
+    /* CUSTOM SCROLLBAR ĐẸP */
     .chat-container::-webkit-scrollbar {
-        width: 6px;
+        width: 8px;
     }
     .chat-container::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
+        background: transparent;
     }
     .chat-container::-webkit-scrollbar-thumb {
         background: #cbd5e1;
@@ -105,142 +103,103 @@ st.markdown("""
         background: #94a3b8;
     }
     
-    /* MESSAGE ROW - INLINE FLEX */
     .message-row {
         display: flex;
         align-items: flex-end;
-        margin-bottom: 4px;
+        margin-bottom: 8px;
         width: 100%;
-        gap: 8px;
+        animation: fadeIn 0.3s ease-out;
     }
 
-    /* Tin nhắn bên PHẢI (Admin/Người gửi) */
+    /* Tin nhắn bên Phải - MESSENGER BLUE */
     .message-right {
         justify-content: flex-end;
     }
     .bubble-right {
         background: linear-gradient(135deg, #0084ff 0%, #0066cc 100%);
         color: white;
-        padding: 10px 14px;
+        padding: 10px 16px;
         border-radius: 18px 18px 4px 18px;
+        display: inline-block;
         max-width: 65%;
         word-wrap: break-word;
         white-space: pre-wrap;
-        font-size: 14.5px;
+        font-size: 15px;
         line-height: 1.4;
-        box-shadow: 0 1px 2px rgba(0,132,255,0.25);
-        animation: slideInRight 0.3s ease-out;
+        box-shadow: 0 1px 2px rgba(0,132,255,0.3);
     }
 
-    /* Tin nhắn bên TRÁI (Nhân viên/Người nhận) */
+    /* Tin nhắn bên Trái - MESSENGER GRAY */
     .message-left {
         justify-content: flex-start;
     }
     .bubble-left {
         background: #e4e6eb;
         color: #050505;
-        padding: 10px 14px;
+        padding: 10px 16px;
         border-radius: 18px 18px 18px 4px;
+        display: inline-block;
         max-width: 65%;
         word-wrap: break-word;
         white-space: pre-wrap;
-        font-size: 14.5px;
+        font-size: 15px;
         line-height: 1.4;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-        animation: slideInLeft 0.3s ease-out;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
     }
     
-    /* AVATAR */
     .chat-avatar {
         width: 32px;
         height: 32px;
         border-radius: 50%;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        margin-right: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         object-fit: cover;
         flex-shrink: 0;
     }
     
-    /* TIMESTAMP */
     .message-time {
         font-size: 11px;
         color: #65676b;
-        margin-top: 2px;
-        text-align: center;
-    }
-    
-    /* NÚT XÁC NHẬN THANH TOÁN - INLINE */
-    .payment-confirm-btn {
-        display: inline-block;
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        text-align: center;
-        cursor: pointer;
-        margin-top: 6px;
-        box-shadow: 0 2px 6px rgba(16,185,129,0.3);
-        transition: all 0.2s;
-        border: none;
-        text-decoration: none;
-    }
-    .payment-confirm-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 10px rgba(16,185,129,0.4);
-    }
-    
-    .payment-confirmed {
-        display: inline-block;
-        background: #e0e0e0;
-        color: #666;
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 12px;
-        margin-top: 6px;
-        font-style: italic;
+        margin-top: 4px;
+        padding: 0 8px;
     }
 
-    /* ANIMATIONS */
-    @keyframes slideInRight {
+    /* ANIMATIONS - SMOOTH */
+    @keyframes fadeIn {
         from {
             opacity: 0;
-            transform: translateX(20px);
+            transform: translateY(10px);
         }
         to {
             opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    
-    @keyframes slideInLeft {
-        from {
-            opacity: 0;
-            transform: translateX(-20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
+            transform: translateY(0);
         }
     }
 
-    /* Nút bấm (Button) */
+    /* Nút bấm (Button) - SMOOTH HOVER */
     .stButton > button {
         border-radius: 10px;
         font-weight: 600;
         border: none;
         padding: 0.6rem 1.2rem;
-        transition: all 0.2s;
+        transition: all 0.2s ease;
         box-shadow: 0 2px 4px rgba(0,0,0,0.08);
     }
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     
-    /* INPUT FIELD */
-    .stChatInput {
-        border-radius: 24px !important;
+    /* INPUT CHAT - BO TRÒN */
+    [data-testid="stChatInput"] {
+        border-radius: 24px;
+    }
+    
+    /* DATAFRAME - ĐẸP HƠN */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -280,7 +239,7 @@ def initialize_database_tables():
         )
     ''')
     
-    # Bảng Tin nhắn - THÊM CỘT payment_confirmed
+    # Bảng Tin nhắn
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -288,8 +247,7 @@ def initialize_database_tables():
             sender TEXT, 
             content TEXT, 
             timestamp TEXT, 
-            msg_type TEXT,
-            payment_confirmed INTEGER DEFAULT 0
+            msg_type TEXT
         )
     ''')
     
@@ -440,70 +398,66 @@ with tab_chat:
         
         # Hiển thị tin nhắn
         messages = cursor.execute(
-            "SELECT sender, content, timestamp, msg_type, id, payment_confirmed FROM messages WHERE workplace_id=? ORDER BY id", 
+            "SELECT sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id", 
             (active_room_id,)
         ).fetchall()
         
         chat_html = '<div class="chat-container">'
         for msg in messages:
-            sender_name, content, time_str, msg_type, msg_id, payment_confirmed = msg
+            sender_name, content, time_str, msg_type = msg
             is_me = (sender_name == current_zalo)
             
             if msg_type == "text":
-                # Kiểm tra nếu là tin nhắn chuyển khoản từ admin
-                is_payment_msg = ("chuyển khoản" in content.lower() or "chuyển tiền" in content.lower())
-                
                 if is_me:
                     chat_html += f'''
                     <div class="message-row message-right">
-                        <div>
+                        <div style="display: inline-block; text-align: right;">
                             <div class="bubble-right">{content}</div>
                             <div class="message-time">{time_str}</div>
                         </div>
                     </div>
                     '''
                 else:
-                    confirm_btn = ""
-                    if is_payment_msg and current_role == 'staff' and payment_confirmed == 0:
-                        confirm_btn = f'''
-                        <div style="text-align: left;">
-                            <button class="payment-confirm-btn" onclick="window.location.href='?confirm_payment={msg_id}'">
-                                ✅ Xác nhận đã nhận tiền
-                            </button>
-                        </div>
-                        '''
-                    elif is_payment_msg and payment_confirmed == 1:
-                        confirm_btn = '<div class="payment-confirmed">✓ Đã xác nhận</div>'
-                    
                     chat_html += f'''
                     <div class="message-row message-left">
-                        <img src="https://ui-avatars.com/api/?name={sender_name}&background=0ea5e9&color=fff" class="chat-avatar"/>
-                        <div>
+                        <img src="https://ui-avatars.com/api/?name={sender_name}&background=0ea5e9&color=fff&size=32" class="chat-avatar"/>
+                        <div style="display: inline-block;">
                             <div class="bubble-left">{content}</div>
-                            {confirm_btn}
                             <div class="message-time">{time_str}</div>
                         </div>
                     </div>
                     '''
             
             elif msg_type == "image":
-                img_side = "right" if is_me else "left"
-                chat_html += f'''
-                <div class="message-row message-{img_side}">
-                    {'' if is_me else f'<img src="https://ui-avatars.com/api/?name={sender_name}&background=0ea5e9&color=fff" class="chat-avatar"/>'}
-                    <div>
-                        <img src="{content}" style="max-width: 250px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"/>
-                        <div class="message-time">{time_str}</div>
+                if is_me:
+                    chat_html += f'''
+                    <div class="message-row message-right">
+                        <div style="display: inline-block; text-align: right;">
+                            <img src="{content}" style="max-width: 280px; max-height: 280px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"/>
+                            <div class="message-time">{time_str}</div>
+                        </div>
                     </div>
-                </div>
-                '''
+                    '''
+                else:
+                    chat_html += f'''
+                    <div class="message-row message-left">
+                        <img src="https://ui-avatars.com/api/?name={sender_name}&background=0ea5e9&color=fff&size=32" class="chat-avatar"/>
+                        <div style="display: inline-block;">
+                            <img src="{content}" style="max-width: 280px; max-height: 280px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"/>
+                            <div class="message-time">{time_str}</div>
+                        </div>
+                    </div>
+                    '''
             
             elif msg_type == "call":
                 call_link = content.split('|')[1]
                 chat_html += f'''
                 <div class="message-row message-right">
-                    <div class="bubble-right">
-                        📹 <a href="{call_link}" target="_blank" style="color:white; text-decoration: underline;">Tham gia cuộc gọi</a>
+                    <div style="display: inline-block; text-align: right;">
+                        <div class="bubble-right">
+                            📹 <a href="{call_link}" target="_blank" style="color:white; text-decoration: underline; font-weight: 600;">Tham gia cuộc gọi video</a>
+                        </div>
+                        <div class="message-time">{time_str}</div>
                     </div>
                 </div>
                 '''
@@ -511,37 +465,12 @@ with tab_chat:
         chat_html += '</div>'
         st.markdown(chat_html, unsafe_allow_html=True)
         
-        # XỬ LÝ XÁC NHẬN THANH TOÁN
-        query_params = st.query_params
-        if "confirm_payment" in query_params:
-            msg_id_to_confirm = query_params["confirm_payment"]
-            
-            # Cập nhật trạng thái tin nhắn
-            cursor.execute("UPDATE messages SET payment_confirmed=1 WHERE id=?", (msg_id_to_confirm,))
-            connection.commit()
-            
-            # Cập nhật Excel
-            my_file_path = os.path.join(STORAGE_DIRECTORY, current_user, "salary.xlsx")
-            df_my_salary = load_excel_safe(my_file_path)
-            df_my_salary.loc[df_my_salary["Trạng thái"].astype(str).str.lower() == "chờ xác nhận", "Trạng thái"] = "đã nhận"
-            save_excel_safe(df_my_salary, my_file_path)
-            
-            # Gửi tin phản hồi
-            cursor.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", 
-                          (active_room_id, current_zalo, "✅ Em đã nhận được tiền lương rồi ạ!", datetime.now().strftime("%H:%M"), "text"))
-            connection.commit()
-            
-            # Xóa query param và reload
-            st.query_params.clear()
-            st.rerun()
-        
         # Input tin nhắn
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         column_input, column_tools = st.columns([6, 1])
         with column_input:
             message_input = st.chat_input("Nhập tin nhắn...")
             if message_input:
-                cursor.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", 
+                cursor.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", 
                                (active_room_id, current_zalo, message_input, datetime.now().strftime("%H:%M"), "text"))
                 connection.commit()
                 st.rerun()
@@ -550,7 +479,7 @@ with tab_chat:
             with st.popover("➕", use_container_width=True):
                 if st.button("📹 Call Video", use_container_width=True):
                     call_link = f"https://meet.jit.si/call_{uuid.uuid4()}"
-                    cursor.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", 
+                    cursor.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", 
                                    (active_room_id, current_zalo, f"video|{call_link}", datetime.now().strftime("%H:%M"), "call"))
                     connection.commit()
                     st.rerun()
@@ -564,7 +493,7 @@ with tab_chat:
                     with open(file_path, "wb") as f:
                         f.write(uploaded_image.getbuffer())
                     
-                    cursor.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", 
+                    cursor.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", 
                                    (active_room_id, current_zalo, file_path, datetime.now().strftime("%H:%M"), "image"))
                     connection.commit()
                     st.rerun()
@@ -584,10 +513,10 @@ with tab_tasks:
                     try:
                         cursor.execute("INSERT INTO workplaces VALUES (?,?,?)", (new_id, new_name, current_user))
                         connection.commit()
-                        st.success("✅ Thành công!")
+                        st.success("Thành công!")
                         st.rerun()
                     except:
-                        st.error("❌ Mã này đã tồn tại.")
+                        st.error("Mã này đã tồn tại.")
             with list_tab:
                 my_branches = pd.read_sql_query(f"SELECT * FROM workplaces WHERE created_by='{current_user}'", connection)
                 st.dataframe(my_branches, use_container_width=True)
@@ -608,19 +537,19 @@ with tab_tasks:
             pending_shifts_count = len(df_salary[df_salary["Xác nhận đến"].astype(str).str.lower() == "false"])
             current_debt = pd.to_numeric(df_salary[~df_salary["Trạng thái"].astype(str).str.lower().str.contains("đã nhận", na=False)]["Tổng lương"], errors='coerce').sum()
             
-            st.info(f"📞 Liên hệ: {staff_list[[s[0] for s in staff_list].index(target_id)][3]}")
+            st.info(f"Thông tin liên hệ: {staff_list[[s[0] for s in staff_list].index(target_id)][3]}")
             
             col_action1, col_action2, col_action3 = st.columns(3)
-            with col_action1: st.metric("💰 Nợ lương:", f"{current_debt:,.0f} VNĐ")
-            with col_action2: st.metric("⏳ Ca chưa duyệt:", f"{pending_shifts_count}")
+            with col_action1: st.metric("Nợ lương:", f"{current_debt:,.0f} VNĐ")
+            with col_action2: st.metric("Ca chưa duyệt:", f"{pending_shifts_count}")
             
             with col_action3:
                 # Nút Duyệt chấm công
                 if pending_shifts_count > 0:
-                    if st.button("✅ DUYỆT CHẤM CÔNG", use_container_width=True):
+                    if st.button("✅ DUYỆT CHẤM CÔNG (Xác nhận đến)", use_container_width=True):
                         df_salary.loc[df_salary["Xác nhận đến"].astype(str).str.lower() == "false", "Xác nhận đến"] = True
                         save_excel_safe(df_salary, target_file_path)
-                        st.success("✅ Đã duyệt thành công!")
+                        st.success("Đã duyệt thành công!")
                         time.sleep(1)
                         st.rerun()
                 
@@ -633,10 +562,10 @@ with tab_tasks:
                         
                         # Gửi tin nhắn thông báo
                         target_wp = [s[2] for s in staff_list if s[0] == target_id][0]
-                        cursor.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", 
-                                       (target_wp, current_zalo, f"🔔 Đã chuyển khoản lương: {current_debt:,.0f} VNĐ. Vui lòng xác nhận!", datetime.now().strftime("%H:%M"), "text"))
+                        cursor.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", 
+                                       (target_wp, current_zalo, f"🔔 Đã chuyển khoản lương: {current_debt:,.0f}. Vui lòng xác nhận!", datetime.now().strftime("%H:%M"), "text"))
                         connection.commit()
-                        st.success("✅ Đã gửi thông báo cho nhân viên!")
+                        st.success("Đã gửi thông báo cho nhân viên!")
                         st.rerun()
             
             with st.expander("➕ Thêm Ca Làm Việc (Admin)"):
@@ -645,7 +574,7 @@ with tab_tasks:
                     t1 = st.time_input("Vào"); t2 = st.time_input("Ra")
                     r = st.number_input("Lương/h (VNĐ)", value=20000, step=1000)
                     
-                    if st.form_submit_button("💾 Lưu Ca", use_container_width=True):
+                    if st.form_submit_button("Lưu Ca", use_container_width=True):
                         dt1 = datetime.combine(d, t1); dt2 = datetime.combine(d, t2)
                         if dt2 < dt1: dt2 += timedelta(days=1)
                         h = (dt2 - dt1).total_seconds() / 3600
@@ -660,7 +589,7 @@ with tab_tasks:
                         }])
                         df_salary = pd.concat([df_salary, new_row], ignore_index=True)
                         save_excel_safe(df_salary, target_file_path)
-                        st.success("✅ Đã thêm ca thành công!")
+                        st.success("Đã thêm ca thành công!")
                         st.rerun()
             
             st.dataframe(df_salary, use_container_width=True)
@@ -681,13 +610,22 @@ with tab_tasks:
         with col_s1: st.metric("💰 Quán nợ bạn:", f"{my_debt:,.0f} VNĐ")
         with col_s2: 
             if waiting_confirmation:
-                st.info("💵 Quản lý đã báo chuyển tiền! Hãy kiểm tra và xác nhận trong phần Chat.")
+                st.warning("Quản lý đã báo chuyển tiền!")
+                if st.button("✅ XÁC NHẬN ĐÃ NHẬN TIỀN", use_container_width=True):
+                    df_my_salary.loc[df_my_salary["Trạng thái"].astype(str).str.lower() == "chờ xác nhận", "Trạng thái"] = "đã nhận"
+                    save_excel_safe(df_my_salary, my_file_path)
+                    
+                    cursor.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", 
+                                   (current_workplace, current_zalo, "✅ Em đã nhận được tiền lương rồi ạ!", datetime.now().strftime("%H:%M"), "text"))
+                    connection.commit()
+                    st.success("Đã xác nhận thành công!")
+                    st.rerun()
             elif my_debt > 0:
                 if st.button("🔔 Nhắc Quản lý", use_container_width=True):
-                    cursor.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", 
+                    cursor.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", 
                                    (current_workplace, current_zalo, f"📣 Anh/Chị ơi check lương giúp em: {my_debt:,.0f} VNĐ", datetime.now().strftime("%H:%M"), "text"))
                     connection.commit()
-                    st.toast("✅ Đã gửi tin nhắn nhắc nhở!")
+                    st.toast("Đã gửi tin nhắn nhắc nhở!")
         
         with st.expander("➕ Báo cáo ca làm việc", expanded=True):
             with st.form("staff_add_shift"):
@@ -695,7 +633,7 @@ with tab_tasks:
                 t1 = st.time_input("Vào"); t2 = st.time_input("Ra")
                 sr = st.number_input("Mức lương/giờ (VNĐ)", value=20000, step=1000)
                 
-                if st.form_submit_button("📤 Gửi báo cáo", use_container_width=True):
+                if st.form_submit_button("Gửi báo cáo", use_container_width=True):
                     dt1 = datetime.combine(d, t1); dt2 = datetime.combine(d, t2)
                     if dt2 < dt1: dt2 += timedelta(days=1)
                     h = (dt2 - dt1).total_seconds() / 3600
@@ -710,7 +648,7 @@ with tab_tasks:
                     }])
                     df_my_salary = pd.concat([df_my_salary, new_row], ignore_index=True)
                     save_excel_safe(df_my_salary, my_file_path)
-                    st.success("✅ Đã lưu báo cáo! Vui lòng chờ quản lý duyệt.")
+                    st.success("Đã lưu báo cáo! Vui lòng chờ quản lý duyệt.")
                     st.rerun()
         
         st.dataframe(df_my_salary, use_container_width=True)
