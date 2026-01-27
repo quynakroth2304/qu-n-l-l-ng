@@ -6,13 +6,15 @@ from datetime import datetime, timedelta
 from PIL import Image
 
 # --- CẤU HÌNH ---
-DB_FILE = "system_users.db"
+# ĐỔI TÊN DB ĐỂ TẠO LẠI BẢNG MỚI (FIX LỖI INDEX ERROR)
+DB_FILE = "system_users_v2.db" 
 STORAGE = "user_files"
 if not os.path.exists(STORAGE): os.makedirs(STORAGE)
 
 conn = sqlite3.connect(DB_FILE, check_same_thread=False)
 c = conn.cursor()
-# Tạo bảng users
+
+# Tạo bảng users với đầy đủ thông tin: Zalo, Group
 c.execute('''CREATE TABLE IF NOT EXISTS users
              (username TEXT PRIMARY KEY, password TEXT, role TEXT, 
               qr_path TEXT, zalo_name TEXT, group_name TEXT)''')
@@ -30,16 +32,16 @@ def find_col(df, keywords):
 def highlight_hours(val):
     try:
         hours = float(val)
-        if hours >= 8: return 'background-color: #d4edda; color: green' # Xanh lá
-        elif hours < 4 and hours > 0: return 'background-color: #f8d7da; color: red' # Đỏ
+        if hours >= 8: return 'background-color: #d4edda; color: green' 
+        elif hours < 4 and hours > 0: return 'background-color: #f8d7da; color: red'
     except: pass
     return ''
 
-st.set_page_config(page_title="Hệ Thống Giám Sát", layout="wide")
+st.set_page_config(page_title="Hệ Thống Giám Sát V2", layout="wide")
 
 # --- PHẦN 1: ĐĂNG NHẬP / ĐĂNG KÝ ---
 if 'user' not in st.session_state:
-    st.title("🛡️ Hệ Thống Giám Sát & Lương")
+    st.title("🛡️ Hệ Thống Giám Sát & Lương (V2)")
     
     t_log, t_reg, t_res = st.tabs(["Đăng nhập", "Đăng ký", "Tải file cứu hộ"])
     
@@ -48,28 +50,33 @@ if 'user' not in st.session_state:
         if up: st.session_state.temp_file = up
 
     with t_reg:
+        st.caption("Tạo tài khoản mới (Dữ liệu cũ đã được reset để nâng cấp)")
         c1, c2 = st.columns(2)
         with c1: 
-            # THÊM KEY ĐỂ TRÁNH LỖI TRÙNG ID
             u_r = st.text_input("Tên đăng nhập", key="reg_user")
             z_r = st.text_input("Tên Zalo", key="reg_zalo")
         with c2: 
-            # THÊM KEY ĐỂ TRÁNH LỖI TRÙNG ID
             p_r = st.text_input("Mật khẩu", type='password', key="reg_pass")
             g_r = st.text_input("Tên Nhóm (Bếp, Bar...)", key="reg_group")
         
         r_r = st.radio("Vai trò:", ["Nhân viên", "Quản lý"], horizontal=True, key="reg_role")
         
         if st.button("Tạo tài khoản", key="btn_reg"):
-            try:
-                role = 'admin' if r_r == "Quản lý" else 'staff'
-                c.execute('INSERT INTO users VALUES (?,?,?,?,?,?)', (u_r, p_r, role, None, z_r, g_r))
-                conn.commit()
-                st.success("Đăng ký thành công! Hãy chuyển qua tab Đăng nhập.")
-            except: st.error("ID này đã tồn tại.")
+            if u_r and p_r and z_r:
+                try:
+                    role = 'admin' if r_r == "Quản lý" else 'staff'
+                    # Chèn đúng 6 cột dữ liệu
+                    c.execute('INSERT INTO users VALUES (?,?,?,?,?,?)', (u_r, p_r, role, None, z_r, g_r))
+                    conn.commit()
+                    st.success("Đăng ký thành công! Hãy chuyển qua tab Đăng nhập.")
+                except sqlite3.IntegrityError:
+                    st.error("Tên đăng nhập này đã tồn tại.")
+                except Exception as e:
+                    st.error(f"Lỗi hệ thống: {e}")
+            else:
+                st.warning("Vui lòng nhập đủ Tên đăng nhập, Mật khẩu và Tên Zalo")
 
     with t_log:
-        # THÊM KEY ĐỂ TRÁNH LỖI TRÙNG ID
         u_l = st.text_input("Tên đăng nhập", key="log_user")
         p_l = st.text_input("Mật khẩu", type='password', key="log_pass")
         
@@ -77,10 +84,13 @@ if 'user' not in st.session_state:
             c.execute('SELECT * FROM users WHERE username=? AND password=?', (u_l, p_l))
             ud = c.fetchone()
             if ud:
-                st.session_state.user = u_l
-                st.session_state.role = ud[2]
-                st.session_state.zalo = ud[4]
-                st.session_state.group = ud[5]
+                # Lấy dữ liệu an toàn hơn để tránh IndexError
+                st.session_state.user = ud[0] # username
+                st.session_state.role = ud[2] # role
+                # Kiểm tra độ dài trước khi lấy zalo/group
+                st.session_state.zalo = ud[4] if len(ud) > 4 else ud[0]
+                st.session_state.group = ud[5] if len(ud) > 5 else ""
+                
                 # Nạp file cứu hộ
                 if 'temp_file' in st.session_state:
                     p = os.path.join(STORAGE, u_l)
@@ -88,7 +98,7 @@ if 'user' not in st.session_state:
                     with open(os.path.join(p, "salary.xlsx"), "wb") as f:
                         f.write(st.session_state.temp_file.getbuffer())
                 st.rerun()
-            else: st.error("Sai thông tin!")
+            else: st.error("Sai thông tin đăng nhập!")
     st.stop()
 
 # --- LOGIC CHÍNH ---
@@ -99,7 +109,7 @@ group = st.session_state.group
 
 with st.sidebar:
     st.title(f"👋 {zalo}")
-    st.caption(f"Vai trò: {role.upper()}")
+    st.caption(f"Vai trò: {role.upper()} | Nhóm: {group}")
     if st.button("Đăng xuất"):
         for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
@@ -112,8 +122,10 @@ if role == 'admin':
     now = datetime.now()
     alerts = []
     
-    c.execute("SELECT username, zalo_name FROM users WHERE role='staff'")
-    staffs = c.fetchall()
+    try:
+        c.execute("SELECT username, zalo_name FROM users WHERE role='staff'")
+        staffs = c.fetchall()
+    except: staffs = []
     
     for s_id, s_name in staffs:
         p = os.path.join(STORAGE, s_id, "salary.xlsx")
