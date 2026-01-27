@@ -48,8 +48,8 @@ def init_db():
 init_db()
 
 # --- TÀI KHOẢN SUPER ADMIN ---
-SUPER_ADMIN_USER = "admin_vip"
-SUPER_ADMIN_PASS = "vip888"
+SUPER_ADMIN_USER = "admin"
+SUPER_ADMIN_PASS = "19051976"
 
 # ==========================================
 # 2. CÁC HÀM HỖ TRỢ
