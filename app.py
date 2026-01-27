@@ -7,18 +7,119 @@ import time
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. CẤU HÌNH HỆ THỐNG
+# 1. CẤU HÌNH & CSS (LÀM ĐẸP GIAO DIỆN)
 # ==========================================
-st.set_page_config(page_title="Hệ Thống V24 (Call Video)", layout="wide", page_icon="📹")
+st.set_page_config(page_title="Hệ Thống V25 Modern", layout="wide", page_icon="💎")
 
-DB_FILE = "system_v24_pro.db" 
+# CSS HACK ĐỂ GIAO DIỆN ĐẸP NHƯ APP
+st.markdown("""
+<style>
+    /* 1. Tổng thể: Font chữ và Nền */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* 2. Chat Box: Làm đẹp khung chat */
+    .stChatMessage {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 5px !important;
+    }
+    
+    /* Tin nhắn của User (Bên phải, màu xanh) */
+    div[data-testid="stChatMessage"]:nth-child(odd) {
+        flex-direction: row-reverse;
+        text-align: right;
+    }
+    div[data-testid="stChatMessage"]:nth-child(odd) .stMarkdown {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white !important;
+        padding: 10px 15px;
+        border-radius: 20px 20px 0px 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        display: inline-block;
+    }
+    
+    /* Tin nhắn của Bot/Người khác (Bên trái, màu trắng) */
+    div[data-testid="stChatMessage"]:nth-child(even) {
+        flex-direction: row;
+        text-align: left;
+    }
+    div[data-testid="stChatMessage"]:nth-child(even) .stMarkdown {
+        background: white;
+        color: #333 !important;
+        padding: 10px 15px;
+        border-radius: 20px 20px 20px 0px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        display: inline-block;
+    }
+
+    /* 3. Nút bấm (Gradient đẹp) */
+    .stButton>button {
+        background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        padding: 10px 24px;
+        transition: all 0.3s ease;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    /* 4. Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e0e0e0;
+    }
+
+    /* 5. Tag & Call Box */
+    .tagged { 
+        background-color: #fff3cd; 
+        border-left: 5px solid #ffc107; 
+        padding: 8px; 
+        border-radius: 4px; 
+        color: #856404;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    .call-box {
+        background: linear-gradient(to right, #11998e, #38ef7d);
+        color: white;
+        padding: 12px;
+        border-radius: 15px;
+        text-align: center;
+        margin: 5px 0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .call-btn {
+        background: white;
+        color: #11998e;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-top: 5px;
+        text-decoration: none;
+        display: inline-block;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 2. DATABASE & LOGIC
+# ==========================================
+DB_FILE = "system_v25_modern.db" 
 STORAGE = "user_files"
 IMG_FOLDER = "chat_uploads"
 
 if not os.path.exists(STORAGE): os.makedirs(STORAGE)
 if not os.path.exists(IMG_FOLDER): os.makedirs(IMG_FOLDER)
 
-# --- KẾT NỐI DATABASE ---
 @st.cache_resource
 def get_connection():
     return sqlite3.connect(DB_FILE, check_same_thread=False)
@@ -26,32 +127,19 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# --- KHỞI TẠO BẢNG ---
 def init_db():
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (username TEXT PRIMARY KEY, password TEXT, role TEXT, 
-                  qr_path TEXT, zalo_name TEXT, workplace_id TEXT, phone TEXT,
-                  license_key TEXT, expiry_date TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS workplaces
-                 (id TEXT PRIMARY KEY, name TEXT, created_by TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS license_keys
-                 (key_code TEXT PRIMARY KEY, duration_days INTEGER, status TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS messages
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, workplace_id TEXT, 
-                  sender TEXT, content TEXT, timestamp TEXT, msg_type TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS sessions
-                 (token TEXT PRIMARY KEY, username TEXT, expiry TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT, qr_path TEXT, zalo_name TEXT, workplace_id TEXT, phone TEXT, license_key TEXT, expiry_date TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS workplaces (id TEXT PRIMARY KEY, name TEXT, created_by TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS license_keys (key_code TEXT PRIMARY KEY, duration_days INTEGER, status TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, workplace_id TEXT, sender TEXT, content TEXT, timestamp TEXT, msg_type TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT, expiry TEXT)''')
     conn.commit()
-
 init_db()
 
-# --- SUPER ADMIN ---
-SUPER_ADMIN_USER = "admin"
-SUPER_ADMIN_PASS = "19051976"
+SUPER_ADMIN_USER = "admin_vip"
+SUPER_ADMIN_PASS = "vip888"
 
-# ==========================================
-# 2. CÁC HÀM HỖ TRỢ
-# ==========================================
+# --- UTILS ---
 def find_col(df, keywords):
     if isinstance(keywords, str): keywords = [keywords]
     for col in df.columns:
@@ -60,77 +148,66 @@ def find_col(df, keywords):
     return None
 
 def load_excel_safe(path):
-    if not os.path.exists(path):
-        return pd.DataFrame(columns=["Ngày", "Vị trí", "Giờ vào", "Giờ ra", "Tổng lương", "Trạng thái", "Xác nhận đến"])
+    if not os.path.exists(path): return pd.DataFrame(columns=["Ngày", "Vị trí", "Giờ vào", "Giờ ra", "Tổng lương", "Trạng thái", "Xác nhận đến"])
     try: return pd.read_excel(path)
     except: return pd.DataFrame()
 
-# --- AUTO LOGIN ---
 def create_session(username):
-    token = str(uuid.uuid4())
-    exp = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT OR REPLACE INTO sessions VALUES (?,?,?)", (token, username, exp))
-    conn.commit()
+    token = str(uuid.uuid4()); exp = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT OR REPLACE INTO sessions VALUES (?,?,?)", (token, username, exp)); conn.commit()
     return token
 
 def get_user_from_session(token):
     try:
-        c.execute("SELECT username, expiry FROM sessions WHERE token=?", (token,))
-        row = c.fetchone()
-        if row and datetime.strptime(row[1], "%Y-%m-%d %H:%M:%S") > datetime.now(): return row[0]
+        r = c.execute("SELECT username, expiry FROM sessions WHERE token=?", (token,)).fetchone()
+        if r and datetime.strptime(r[1], "%Y-%m-%d %H:%M:%S") > datetime.now(): return r[0]
     except: pass
     return None
 
 if "session" in st.query_params:
-    auto_user = get_user_from_session(st.query_params["session"])
-    if auto_user and 'user' not in st.session_state:
-        c.execute('SELECT * FROM users WHERE username=?', (auto_user,))
-        ud = c.fetchone()
+    u = get_user_from_session(st.query_params["session"])
+    if u and 'user' not in st.session_state:
+        ud = c.execute('SELECT * FROM users WHERE username=?', (u,)).fetchone()
         if ud:
-            st.session_state.user = ud[0]; st.session_state.role = ud[2]; st.session_state.zalo = ud[4]
-            st.session_state.wp_id = ud[5]; st.session_state.expiry = ud[8]
+            st.session_state.user=ud[0]; st.session_state.role=ud[2]; st.session_state.zalo=ud[4]; st.session_state.wp_id=ud[5]; st.session_state.expiry=ud[8]
 
 # ==========================================
-# 3. GIAO DIỆN CHAT (REAL-TIME 1S)
+# 3. GIAO DIỆN CHAT (FRAGMENT - MƯỢT MÀ)
 # ==========================================
 @st.fragment(run_every=2)
 def render_chat_box(room_id, current_user_zalo, chat_type="group"):
     try:
-        c.execute("SELECT sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,))
-        msgs = c.fetchall()[::-1]
+        msgs = c.execute("SELECT sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,)).fetchall()[::-1]
     except: return
 
-    # Tiêu đề khung chat
-    title_icon = "🏢" if chat_type == "group" else "🔒"
-    title_text = f"Nhóm: {room_id}" if chat_type == "group" else f"Chat riêng: {room_id.replace('DM_', '').replace(current_user_zalo, '').replace('_', '')}"
-    st.caption(f"{title_icon} **{title_text}** (Cập nhật 2s/lần)")
-    
-    st.markdown("""<style>.tagged { background-color: #ffe6e6; border: 2px solid #ff4d4d; padding: 10px; border-radius: 10px; color: #b30000; font-weight: bold; margin-bottom: 5px;} .call-box {background-color: #e3f2fd; border: 1px solid #2196f3; padding: 10px; border-radius: 10px; text-align: center; margin-bottom: 5px;}</style>""", unsafe_allow_html=True)
+    # Header đẹp
+    icon = "🏢" if chat_type == "group" else "💬"
+    room_name = room_id if chat_type == "group" else room_id.replace("DM_", "").replace(current_user_zalo, "").replace("_", "")
+    st.markdown(f"<div style='text-align: center; color: #666; font-size: 0.9em; margin-bottom: 10px;'>{icon} Đang trò chuyện: <b>{room_name}</b></div>", unsafe_allow_html=True)
 
-    with st.container(height=450):
-        if not msgs: st.info("👋 Bắt đầu cuộc trò chuyện mới!")
+    with st.container(height=500):
+        if not msgs: st.markdown("<div style='text-align: center; color: #999; padding: 20px;'>👋 Chưa có tin nhắn nào.</div>", unsafe_allow_html=True)
+        
         for sender, content, ts, m_type in msgs:
             is_me = (sender == current_user_zalo)
             is_tagged = (m_type == 'text' and content and f"@{current_user_zalo}" in content)
             
-            with st.chat_message("user" if is_me else "assistant", avatar="👤" if is_me else "🤖"):
+            # Dùng st.chat_message nhưng đã được CSS Hack ở trên để đẹp hơn
+            with st.chat_message("user" if is_me else "assistant", avatar="🧑‍💻" if is_me else "👤"):
                 st.caption(f"{sender} • {ts}")
                 
                 if m_type == 'image':
-                    if os.path.exists(content): st.image(content, width=250)
-                elif m_type == 'emoji': st.markdown(f"## {content}")
+                    if os.path.exists(content): st.image(content, width=300)
+                elif m_type == 'emoji':
+                    st.markdown(f"<h1 style='margin:0'>{content}</h1>", unsafe_allow_html=True)
                 elif m_type == 'call':
-                    # Hiển thị nút tham gia cuộc gọi
+                    # Giao diện Call Video đẹp
                     call_type = "📹 Video Call" if "video" in content else "📞 Voice Call"
                     link = content.split('|')[-1]
                     st.markdown(f"""
                     <div class="call-box">
-                        <b>{sender} đang gọi...</b><br>
-                        <a href="{link}" target="_blank" style="text-decoration: none;">
-                            <button style="background-color: #4CAF50; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 5px;">
-                                👉 Bấm để tham gia {call_type}
-                            </button>
-                        </a>
+                        <div><b>{sender}</b> đang gọi...</div>
+                        <a href="{link}" target="_blank" class="call-btn">👉 Tham gia {call_type}</a>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
@@ -138,158 +215,123 @@ def render_chat_box(room_id, current_user_zalo, chat_type="group"):
                     else: st.write(content)
 
 # ==========================================
-# 4. ĐĂNG NHẬP / ĐĂNG KÝ
+# 4. TRANG LOGIN / REGISTER (GIAO DIỆN THẺ)
 # ==========================================
 if 'user' not in st.session_state:
-    st.title("🔐 Hệ Thống V24 (Call Video)")
-    t_log, t_reg, t_super = st.tabs(["Đăng nhập", "Đăng ký", "Super Admin"])
-    
-    with t_super:
-        sa_u = st.text_input("User"); sa_p = st.text_input("Pass", type="password")
-        if st.button("Login Super"):
-            if sa_u == SUPER_ADMIN_USER and sa_p == SUPER_ADMIN_PASS:
-                st.session_state.user = "SUPER_ADMIN"; st.session_state.role = "super_admin"; st.rerun()
-
-    with t_reg:
-        st.info("⚠️ Hệ thống nâng cấp. Vui lòng đăng ký mới nếu chưa có tài khoản.")
-        c1, c2 = st.columns(2)
-        with c1: u_r = st.text_input("User ID", key="r_u"); z_r = st.text_input("Zalo Name", key="r_z"); p_r = st.text_input("Phone", key="r_p")
-        with c2: pass_r = st.text_input("Pass", type="password", key="r_pa"); r_r = st.radio("Role", ["Nhân viên", "Quản lý"], horizontal=True)
-        wp_in = st.text_input("Mã Chi Nhánh (Nếu là NV)", key="r_w") if r_r == "Nhân viên" else "ADMIN"
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.markdown("<h1 style='text-align: center; color: #4b6cb7;'>🔐 ĐĂNG NHẬP HỆ THỐNG</h1>", unsafe_allow_html=True)
+        tab_login, tab_reg = st.tabs(["Đăng Nhập", "Đăng Ký Mới"])
         
-        if st.button("Đăng ký"):
-            try:
-                if r_r == "Nhân viên":
-                    c.execute("SELECT id FROM workplaces WHERE id=?", (wp_in,))
-                    if not c.fetchone(): st.error("Mã chi nhánh không tồn tại!"); st.stop()
-                c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?)', (u_r, pass_r, 'admin' if r_r=="Quản lý" else 'staff', None, z_r, wp_in, p_r, None, "2000-01-01"))
-                conn.commit(); st.success("Đăng ký thành công!"); 
-            except: st.error("ID đã tồn tại.")
+        with tab_login:
+            with st.form("login_form"):
+                u_l = st.text_input("Tên đăng nhập")
+                p_l = st.text_input("Mật khẩu", type="password")
+                if st.form_submit_button("🚀 Vào Hệ Thống", use_container_width=True):
+                    ud = c.execute('SELECT * FROM users WHERE username=? AND password=?', (u_l, p_l)).fetchone()
+                    if ud:
+                        st.session_state.user=ud[0]; st.session_state.role=ud[2]; st.session_state.zalo=ud[4]; st.session_state.wp_id=ud[5]; st.session_state.expiry=ud[8]
+                        token = create_session(ud[0]); st.query_params["session"] = token
+                        st.rerun()
+                    elif u_l == SUPER_ADMIN_USER and p_l == SUPER_ADMIN_PASS:
+                        st.session_state.user = "SUPER_ADMIN"; st.session_state.role = "super_admin"; st.rerun()
+                    else: st.error("Sai thông tin!")
 
-    with t_log:
-        u_l = st.text_input("User ID", key="l_u"); p_l = st.text_input("Pass", type="password", key="l_p")
-        if st.button("Đăng nhập"):
-            c.execute('SELECT * FROM users WHERE username=? AND password=?', (u_l, p_l))
-            ud = c.fetchone()
-            if ud:
-                st.session_state.user = ud[0]; st.session_state.role = ud[2]; st.session_state.zalo = ud[4]
-                st.session_state.wp_id = ud[5]; st.session_state.expiry = ud[8]
-                token = create_session(ud[0]); st.query_params["session"] = token
-                st.rerun()
-            else: st.error("Sai thông tin!")
+        with tab_reg:
+            with st.form("reg_form"):
+                c_a, c_b = st.columns(2)
+                with c_a: u_r = st.text_input("User ID"); z_r = st.text_input("Tên Zalo"); p_r = st.text_input("SĐT")
+                with c_b: pass_r = st.text_input("Pass", type="password"); r_r = st.radio("Vai trò", ["Nhân viên", "Quản lý"])
+                wp_in = st.text_input("Mã Chi Nhánh (Nếu là NV)") if r_r == "Nhân viên" else "ADMIN"
+                
+                if st.form_submit_button("📝 Đăng Ký Ngay", use_container_width=True):
+                    try:
+                        if r_r == "Nhân viên" and not c.execute("SELECT id FROM workplaces WHERE id=?", (wp_in,)).fetchone():
+                            st.error("Mã chi nhánh không đúng!"); st.stop()
+                        c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?)', (u_r, pass_r, 'admin' if r_r=="Quản lý" else 'staff', None, z_r, wp_in, p_r, None, "2000-01-01"))
+                        conn.commit(); st.success("Thành công! Mời đăng nhập.")
+                    except: st.error("ID đã tồn tại.")
     st.stop()
 
-# --- SAU KHI LOGIN ---
+# ==========================================
+# 5. KHU VỰC CHÍNH (SAU LOGIN)
+# ==========================================
 user = st.session_state.user; role = st.session_state.role
 zalo = st.session_state.zalo if 'zalo' in st.session_state else user
 wp_id = st.session_state.wp_id if 'wp_id' in st.session_state else ""
 
 with st.sidebar:
-    st.title(f"👋 {zalo}"); st.caption(f"Role: {role}")
-    if st.button("Đăng xuất"):
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80)
+    st.title(f"{zalo}")
+    st.info(f"Role: {role} | Work: {wp_id}")
+    
+    if st.button("🚪 Đăng xuất", use_container_width=True):
         if "session" in st.query_params: c.execute("DELETE FROM sessions WHERE token=?", (st.query_params["session"],)); conn.commit(); st.query_params.clear()
         del st.session_state.user; st.rerun()
 
 # --- SUPER ADMIN ---
 if role == 'super_admin':
-    st.header("🔑 SUPER ADMIN"); k_t = st.selectbox("Key", [30, 365]); 
+    st.header("🔑 QUẢN TRỊ VIÊN"); k_t = st.selectbox("Loại Key", [30, 365]); 
     if st.button("Sinh Key"): k = str(uuid.uuid4())[:8].upper(); c.execute("INSERT INTO license_keys VALUES (?,?,?)", (k, k_t, "active")); conn.commit(); st.success(f"Key: {k}")
-    if st.button("RESET TOÀN BỘ"): st.cache_resource.clear(); c.close(); conn.close(); os.remove(DB_FILE); st.success("Đã xóa DB!"); time.sleep(1); st.rerun()
-    st.stop()
+    st.dataframe(pd.DataFrame(c.execute("SELECT * FROM license_keys").fetchall(), columns=["Key", "Days", "Status"])); st.stop()
 
-# --- CHECK LICENSE ---
+# --- LICENSE CHECK ---
 if role == 'admin':
     days = (datetime.strptime(st.session_state.expiry or "2000-01-01", "%Y-%m-%d") - datetime.now()).days
     if days < 0:
-        st.error(f"🔒 Hết hạn!"); k_in = st.text_input("Nhập Key:"); 
+        st.error(f"🔒 Hết hạn!"); k_in = st.text_input("License Key:")
         if st.button("Kích hoạt"):
             d = c.execute("SELECT duration_days FROM license_keys WHERE key_code=? AND status='active'", (k_in,)).fetchone()
-            if d:
-                nex = (datetime.now()+timedelta(days=d[0])).strftime("%Y-%m-%d"); c.execute("UPDATE users SET expiry_date=? WHERE username=?", (nex, user)); c.execute("UPDATE license_keys SET status='used' WHERE key_code=?", (k_in,)); conn.commit(); st.session_state.expiry = nex; st.rerun()
-            else: st.error("Lỗi Key!")
+            if d: nex = (datetime.now()+timedelta(days=d[0])).strftime("%Y-%m-%d"); c.execute("UPDATE users SET expiry_date=? WHERE username=?", (nex, user)); c.execute("UPDATE license_keys SET status='used' WHERE key_code=?", (k_in,)); conn.commit(); st.session_state.expiry = nex; st.rerun()
+            else: st.error("Key lỗi!")
         st.stop()
 
-# ==========================================
-# GIAO DIỆN CHÍNH
-# ==========================================
-tab_chat, tab_work = st.tabs(["💬 Trung Tâm Liên Lạc", "📊 Quản Lý Công Việc"])
+# --- MAIN UI ---
+t_chat, t_work = st.tabs(["💬 Trò Chuyện & Gọi Điện", "📊 Quản Lý Công Việc"])
 
-# --- TAB 1: CHAT & CALL ---
-with tab_chat:
-    # 1. CHỌN CHẾ ĐỘ CHAT
-    chat_mode = st.radio("Chế độ:", ["🏢 Nhóm Chung", "👤 Nhắn Riêng"], horizontal=True, label_visibility="collapsed")
-    
+with t_chat:
+    mode = st.radio("Chế độ:", ["🏢 Nhóm Chung", "👤 Nhắn Riêng"], horizontal=True, label_visibility="collapsed")
     active_room = None
-    
-    if chat_mode == "🏢 Nhóm Chung":
+    if mode == "🏢 Nhóm Chung":
         if role == 'admin':
             rooms = [r[0] for r in c.execute("SELECT id FROM workplaces").fetchall()]
             if rooms: active_room = st.selectbox("Chọn nhóm:", rooms)
-            else: st.warning("Chưa có nhóm nào!")
-        else:
-            active_room = wp_id # Nhân viên chỉ thấy nhóm mình
-            
-    else: # Nhắn Riêng
-        # Lấy danh sách user khác mình
-        users = c.execute("SELECT zalo_name FROM users WHERE username != ?", (user,)).fetchall()
-        user_list = [u[0] for u in users]
-        if user_list:
-            target_user = st.selectbox("Chọn người nhắn:", user_list)
-            # Tạo Room ID duy nhất cho 2 người (Sắp xếp tên để A nhắn B giống B nhắn A)
-            pair = sorted([zalo, target_user])
-            active_room = f"DM_{pair[0]}_{pair[1]}"
-        else:
-            st.info("Chưa có ai để nhắn.")
-
-    # 2. HIỂN THỊ KHUNG CHAT & CÔNG CỤ
+        else: active_room = wp_id
+    else:
+        users = [u[0] for u in c.execute("SELECT zalo_name FROM users WHERE username != ?", (user,)).fetchall()]
+        if users:
+            target = st.selectbox("Người nhắn:", users)
+            active_room = f"DM_{sorted([zalo, target])[0]}_{sorted([zalo, target])[1]}"
+    
     if active_room:
-        render_chat_box(active_room, zalo, "private" if chat_mode == "👤 Nhắn Riêng" else "group")
+        render_chat_box(active_room, zalo, "private" if mode == "👤 Nhắn Riêng" else "group")
         
         c1, c2 = st.columns([5, 1])
         with c1:
             if p := st.chat_input("Nhập tin nhắn..."):
                 c.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", (active_room, zalo, p, datetime.now().strftime("%H:%M"), "text")); conn.commit()
-        
         with c2:
-            with st.popover("➕ Tiện ích"):
-                st.write("**Gọi điện:**")
-                cc1, cc2 = st.columns(2)
-                
-                # Nút Gọi Thoại
-                if cc1.button("📞 Voice"):
-                    # Tạo link Jitsi ngẫu nhiên
-                    call_id = f"voice_{uuid.uuid4()}"
-                    link = f"https://meet.jit.si/{call_id}#config.startWithVideoMuted=true"
-                    msg = f"voice|{link}"
-                    c.execute("INSERT INTO messages VALUES (NULL, ?, ?, ?, ?, ?)", (active_room, zalo, msg, datetime.now().strftime("%H:%M"), "call")); conn.commit(); st.rerun()
-                
-                # Nút Gọi Video
-                if cc2.button("📹 Video"):
-                    call_id = f"video_{uuid.uuid4()}"
-                    link = f"https://meet.jit.si/{call_id}"
-                    msg = f"video|{link}"
-                    c.execute("INSERT INTO messages VALUES (NULL, ?, ?, ?, ?, ?)", (active_room, zalo, msg, datetime.now().strftime("%H:%M"), "call")); conn.commit(); st.rerun()
-
+            with st.popover("➕ Tiện ích", use_container_width=True):
+                if st.button("📹 Video Call", use_container_width=True):
+                     link = f"https://meet.jit.si/video_{uuid.uuid4()}"; c.execute("INSERT INTO messages VALUES (NULL, ?, ?, ?, ?, ?)", (active_room, zalo, f"v|{link}", datetime.now().strftime("%H:%M"), "call")); conn.commit(); st.rerun()
                 st.divider()
-                st.write("**Gửi ảnh/Icon:**")
+                st.write("Gửi nhanh:")
                 ec = st.columns(4)
                 for i,e in enumerate(["👍","❤️","😂","OK"]): 
                     if ec[i].button(e): c.execute("INSERT INTO messages VALUES (NULL, ?, ?, ?, ?, ?)", (active_room, zalo, e, datetime.now().strftime("%H:%M"), "emoji")); conn.commit(); st.rerun()
-                
-                img = st.file_uploader("", type=['png','jpg'], key="img_up")
+                img = st.file_uploader("", type=['png','jpg'], label_visibility="collapsed")
                 if img and st.button("Gửi Ảnh"):
-                    ext = img.name.split('.')[-1]; fname = f"{uuid.uuid4()}.{ext}"; fpath = os.path.join(IMG_FOLDER, fname)
+                    ext = img.name.split('.')[-1]; fname = f"{uuid.uuid4()}.{ext}"; fpath = os.path.join(IMG_FOLDER, fname); 
                     with open(fpath, "wb") as f: f.write(img.getbuffer())
                     c.execute("INSERT INTO messages VALUES (NULL, ?, ?, ?, ?, ?)", (active_room, zalo, fpath, datetime.now().strftime("%H:%M"), "image")); conn.commit(); st.rerun()
 
-# --- TAB 2: QUẢN LÝ ---
-with tab_work:
+with t_work:
     if role == 'admin':
-        with st.expander("🏢 CẤU HÌNH"):
+        with st.expander("🏢 CẤU HÌNH CHI NHÁNH"):
             ni = st.text_input("Mã ID").upper(); nn = st.text_input("Tên")
             if st.button("Tạo"): 
                 try: c.execute("INSERT INTO workplaces VALUES (?,?,?)", (ni, nn, user)); conn.commit(); st.success(f"Tạo {ni}"); st.rerun()
-                except: st.error("Trùng!")
+                except: st.error("Trùng mã!")
             st.dataframe(pd.DataFrame(c.execute("SELECT id, name FROM workplaces").fetchall(), columns=["ID", "Name"]))
         
         staffs = c.execute("SELECT username, zalo_name, workplace_id, phone FROM users WHERE role='staff'").fetchall()
