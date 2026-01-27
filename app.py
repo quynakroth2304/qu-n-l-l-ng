@@ -7,9 +7,10 @@ import time
 from datetime import datetime, timedelta
 
 # --- CẤU HÌNH HỆ THỐNG ---
-DB_FILE = "system_v14_chatpro.db" # Database mới
+# ĐỔI TÊN DB ĐỂ TẠO LẠI CẤU TRÚC MỚI (FIX LỖI)
+DB_FILE = "system_v15_final.db" 
 STORAGE = "user_files"
-IMG_FOLDER = "chat_uploads" # Thư mục chứa ảnh chat
+IMG_FOLDER = "chat_uploads"
 
 if not os.path.exists(STORAGE): os.makedirs(STORAGE)
 if not os.path.exists(IMG_FOLDER): os.makedirs(IMG_FOLDER)
@@ -22,7 +23,7 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# TẠO BẢNG DỮ LIỆU
+# TẠO BẢNG DỮ LIỆU (CẤU TRÚC CHUẨN)
 c.execute('''CREATE TABLE IF NOT EXISTS users
              (username TEXT PRIMARY KEY, password TEXT, role TEXT, 
               qr_path TEXT, zalo_name TEXT, workplace_id TEXT, phone TEXT,
@@ -34,7 +35,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS workplaces
 c.execute('''CREATE TABLE IF NOT EXISTS license_keys
              (key_code TEXT PRIMARY KEY, duration_days INTEGER, status TEXT)''')
 
-# Thêm cột msg_type (text/image/emoji)
+# Bảng tin nhắn có cột msg_type
 c.execute('''CREATE TABLE IF NOT EXISTS messages
              (id INTEGER PRIMARY KEY AUTOINCREMENT, workplace_id TEXT, 
               sender TEXT, content TEXT, timestamp TEXT, msg_type TEXT)''')
@@ -47,7 +48,7 @@ conn.commit()
 SUPER_ADMIN_USER = "admin_vip"
 SUPER_ADMIN_PASS = "vip888"
 
-st.set_page_config(page_title="Hệ Thống V14 Pro", layout="wide", page_icon="💬")
+st.set_page_config(page_title="Hệ Thống V15 Final", layout="wide", page_icon="💬")
 
 # --- 2. HÀM HỖ TRỢ ---
 def find_col(df, keywords):
@@ -93,16 +94,21 @@ if "session" in st.query_params:
 # ==========================================
 @st.fragment(run_every=1)
 def render_chat_box(room_id, current_user_zalo):
-    # Lấy tin nhắn
-    c.execute("SELECT sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,))
-    msgs = c.fetchall()[::-1]
-    
+    # Lấy tin nhắn (Đảm bảo DB đã có msg_type)
+    try:
+        c.execute("SELECT sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,))
+        msgs = c.fetchall()[::-1]
+    except:
+        st.error("Lỗi dữ liệu chat. Vui lòng liên hệ Admin.")
+        return
+
     st.caption(f"⚡ Đang chat tại: **{room_id}** (Cập nhật 1s)")
     
     # CSS cho Tag
     st.markdown("""
     <style>
         .tagged { background-color: #ffcccc; border: 2px solid red; padding: 5px; border-radius: 5px; font-weight: bold; color: darkred; }
+        .msg-img { border-radius: 10px; margin-top: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -119,13 +125,12 @@ def render_chat_box(room_id, current_user_zalo):
                 st.caption(f"{sender} • {ts}")
                 
                 if m_type == 'image':
-                    if os.path.exists(content): st.image(content, width=300)
-                    else: st.error("Ảnh đã bị xóa")
+                    if os.path.exists(content): st.image(content, width=250)
+                    else: st.warning("Ảnh không tồn tại")
                 elif m_type == 'emoji':
-                    st.markdown(f"## {content}") # Icon hiện to
+                    st.markdown(f"### {content}") 
                 else:
                     if is_tagged:
-                        # Hiển thị thông báo nổi bật
                         st.markdown(f'<div class="tagged">🔔 BẠN ĐƯỢC NHẮC TÊN:<br>{content}</div>', unsafe_allow_html=True)
                     else:
                         st.write(content)
@@ -134,7 +139,7 @@ def render_chat_box(room_id, current_user_zalo):
 # PHẦN 5: GIAO DIỆN CHÍNH
 # ==========================================
 if 'user' not in st.session_state:
-    st.title("🔐 Hệ Thống V14 Pro")
+    st.title("🔐 Hệ Thống V15 Final")
     t_log, t_reg, t_super = st.tabs(["Đăng nhập", "Đăng ký", "Super Admin"])
     
     with t_super:
@@ -154,6 +159,7 @@ if 'user' not in st.session_state:
                 if r_r == "Nhân viên":
                     c.execute("SELECT id FROM workplaces WHERE id=?", (wp_in,))
                     if not c.fetchone(): st.error("Mã chi nhánh sai!"); st.stop()
+                # Insert mặc định msg_type='text' (không ảnh hưởng bảng users, chỉ là comment logic)
                 c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?)', (u_r, pass_r, 'admin' if r_r=="Quản lý" else 'staff', None, z_r, wp_in, p_r, None, "2000-01-01"))
                 conn.commit(); st.success("Đăng ký xong!")
             except: st.error("ID tồn tại.")
@@ -238,7 +244,7 @@ with tab_chat:
             st.rerun() # Rerun để hiện ngay
 
     with col_media:
-        with st.popover("📎 Gửi Ảnh / Icon"):
+        with st.popover("📎 Ảnh / Icon"):
             # A. Gửi Icon nhanh
             st.write("Thả cảm xúc:")
             emoji_cols = st.columns(4)
