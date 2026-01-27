@@ -2,25 +2,23 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from PIL import Image
 
-# --- CẤU HÌNH HỆ THỐNG ---
+# --- CẤU HÌNH ---
 DB_FILE = "system_users.db"
 STORAGE = "user_files"
 if not os.path.exists(STORAGE): os.makedirs(STORAGE)
 
-# Kết nối Database & Tự động Migration (Thêm cột mới nếu chưa có)
 conn = sqlite3.connect(DB_FILE, check_same_thread=False)
 c = conn.cursor()
-
-# Tạo bảng users với đầy đủ thông tin: Zalo, Group
+# Tạo bảng users
 c.execute('''CREATE TABLE IF NOT EXISTS users
              (username TEXT PRIMARY KEY, password TEXT, role TEXT, 
               qr_path TEXT, zalo_name TEXT, group_name TEXT)''')
 conn.commit()
 
-# --- HÀM TÌM CỘT THÔNG MINH ---
+# --- HÀM TÌM CỘT ---
 def find_col(df, keywords):
     if isinstance(keywords, str): keywords = [keywords]
     for col in df.columns:
@@ -28,235 +26,253 @@ def find_col(df, keywords):
             if key.lower() in str(col).lower(): return col
     return None
 
-st.set_page_config(page_title="Hệ Thống Chấm Công Nhóm", layout="wide")
+# --- HÀM TÔ MÀU ---
+def highlight_hours(val):
+    try:
+        hours = float(val)
+        if hours >= 8: return 'background-color: #d4edda; color: green' # Xanh lá
+        elif hours < 4 and hours > 0: return 'background-color: #f8d7da; color: red' # Đỏ
+    except: pass
+    return ''
+
+st.set_page_config(page_title="Hệ Thống Giám Sát", layout="wide")
 
 # --- PHẦN 1: ĐĂNG NHẬP / ĐĂNG KÝ ---
 if 'user' not in st.session_state:
-    st.title("🛡️ Hệ Thống Chấm Công & Lương")
+    st.title("🛡️ Hệ Thống Giám Sát & Lương")
     
-    t_log, t_reg, t_rescue = st.tabs(["Đăng nhập", "Đăng ký thành viên", "📂 Tải file cứu hộ"])
+    t_log, t_reg, t_res = st.tabs(["Đăng nhập", "Đăng ký", "Tải file cứu hộ"])
     
-    with t_rescue:
-        st.info("Dùng khi bị mất dữ liệu tạm thời.")
-        res = st.file_uploader("Tải file Excel cũ", type="xlsx")
-        if res: st.session_state.temp_file = res
+    with t_res:
+        up = st.file_uploader("Tải file Excel cũ", type="xlsx")
+        if up: st.session_state.temp_file = up
 
     with t_reg:
-        st.write("📝 **Đăng ký thành viên mới**")
         c1, c2 = st.columns(2)
         with c1: 
-            u_reg = st.text_input("Tên đăng nhập (ID duy nhất)")
-            zalo_reg = st.text_input("Tên hiển thị Zalo (Để tránh nhầm lẫn)")
+            # THÊM KEY ĐỂ TRÁNH LỖI TRÙNG ID
+            u_r = st.text_input("Tên đăng nhập", key="reg_user")
+            z_r = st.text_input("Tên Zalo", key="reg_zalo")
         with c2: 
-            p_reg = st.text_input("Mật khẩu", type='password')
-            group_reg = st.text_input("Tên Nhóm (VD: Cafe, Bếp, Kho...)")
+            # THÊM KEY ĐỂ TRÁNH LỖI TRÙNG ID
+            p_r = st.text_input("Mật khẩu", type='password', key="reg_pass")
+            g_r = st.text_input("Tên Nhóm (Bếp, Bar...)", key="reg_group")
         
-        role_reg = st.radio("Vai trò:", ["Nhân viên", "Quản lý"], horizontal=True)
+        r_r = st.radio("Vai trò:", ["Nhân viên", "Quản lý"], horizontal=True, key="reg_role")
         
-        if st.button("Tạo tài khoản"):
-            if u_reg and p_reg and zalo_reg and group_reg:
-                try:
-                    r_code = 'admin' if role_reg == "Quản lý" else 'staff'
-                    c.execute('INSERT INTO users(username, password, role, zalo_name, group_name) VALUES (?,?,?,?,?)', 
-                              (u_reg, p_reg, r_code, zalo_reg, group_reg))
-                    conn.commit()
-                    st.success(f"Đã tạo tài khoản cho {zalo_reg} thuộc nhóm {group_reg}!")
-                except: st.error("ID đăng nhập này đã tồn tại.")
-            else: st.warning("Vui lòng điền đầy đủ thông tin!")
+        if st.button("Tạo tài khoản", key="btn_reg"):
+            try:
+                role = 'admin' if r_r == "Quản lý" else 'staff'
+                c.execute('INSERT INTO users VALUES (?,?,?,?,?,?)', (u_r, p_r, role, None, z_r, g_r))
+                conn.commit()
+                st.success("Đăng ký thành công! Hãy chuyển qua tab Đăng nhập.")
+            except: st.error("ID này đã tồn tại.")
 
     with t_log:
-        u_log = st.text_input("Tên đăng nhập")
-        p_log = st.text_input("Mật khẩu", type='password')
-        if st.button("Vào hệ thống"):
-            c.execute('SELECT * FROM users WHERE username=? AND password=?', (u_log, p_log))
+        # THÊM KEY ĐỂ TRÁNH LỖI TRÙNG ID
+        u_l = st.text_input("Tên đăng nhập", key="log_user")
+        p_l = st.text_input("Mật khẩu", type='password', key="log_pass")
+        
+        if st.button("Vào hệ thống", key="btn_login"):
+            c.execute('SELECT * FROM users WHERE username=? AND password=?', (u_l, p_l))
             ud = c.fetchone()
             if ud:
-                st.session_state.user = u_log
-                st.session_state.role = ud[2] if len(ud) > 2 else 'staff'
-                st.session_state.zalo = ud[4] if len(ud) > 4 else u_log
-                st.session_state.group = ud[5] if len(ud) > 5 else 'Chưa phân nhóm'
-                
+                st.session_state.user = u_l
+                st.session_state.role = ud[2]
+                st.session_state.zalo = ud[4]
+                st.session_state.group = ud[5]
                 # Nạp file cứu hộ
                 if 'temp_file' in st.session_state:
-                    u_dir = os.path.join(STORAGE, u_log)
-                    if not os.path.exists(u_dir): os.makedirs(u_dir)
-                    with open(os.path.join(u_dir, "salary.xlsx"), "wb") as f:
+                    p = os.path.join(STORAGE, u_l)
+                    if not os.path.exists(p): os.makedirs(p)
+                    with open(os.path.join(p, "salary.xlsx"), "wb") as f:
                         f.write(st.session_state.temp_file.getbuffer())
                 st.rerun()
             else: st.error("Sai thông tin!")
     st.stop()
 
-# --- PHẦN 2: LOGIC CHÍNH ---
-current_user = st.session_state.user
-current_role = st.session_state.role
-current_zalo = st.session_state.zalo
-current_group = st.session_state.group
+# --- LOGIC CHÍNH ---
+user = st.session_state.user
+role = st.session_state.role
+zalo = st.session_state.zalo
+group = st.session_state.group
 
-# Sidebar
 with st.sidebar:
-    st.title(f"👋 {current_zalo}")
-    st.caption(f"ID: {current_user} | Nhóm: {current_group}")
-    st.caption(f"Vai trò: {'👑 QUẢN LÝ' if current_role == 'admin' else '👤 NHÂN VIÊN'}")
+    st.title(f"👋 {zalo}")
+    st.caption(f"Vai trò: {role.upper()}")
     if st.button("Đăng xuất"):
-        for key in list(st.session_state.keys()): del st.session_state[key]
+        for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-# --- CHỨC NĂNG QUẢN LÝ (ADMIN) ---
-if current_role == 'admin':
-    st.header("👑 Bảng Điều Khiển Quản Lý")
-    tab1, tab2 = st.tabs(["📅 Điểm danh theo ngày", "🔍 Quản lý từng nhân viên"])
+# --- [QUẢN LÝ] TÍNH NĂNG THÔNG BÁO & CHECK-IN ---
+if role == 'admin':
+    st.header("🔔 Trung Tâm Điều Hành")
     
-    # TAB 1: XEM TỔNG QUÁT THEO NGÀY (TÍNH NĂNG MỚI)
-    with tab1:
-        st.subheader("Ai đi làm hôm nay?")
-        col_d1, col_d2 = st.columns(2)
-        with col_d1: view_date = st.date_input("Chọn ngày xem:", datetime.now())
-        with col_d2: 
-            # Lấy danh sách các nhóm
-            c.execute("SELECT DISTINCT group_name FROM users WHERE group_name IS NOT NULL")
-            groups = [row[0] for row in c.fetchall()]
-            view_group = st.selectbox("Lọc theo nhóm:", ["Tất cả"] + groups)
-
-        if st.button("Quét dữ liệu chấm công"):
-            # Lấy danh sách nhân viên
-            query = "SELECT username, zalo_name, group_name FROM users WHERE role='staff'"
-            if view_group != "Tất cả": query += f" AND group_name='{view_group}'"
-            c.execute(query)
-            staffs = c.fetchall()
-            
-            daily_report = []
-            for s_id, s_zalo, s_group in staffs:
-                path = os.path.join(STORAGE, s_id, "salary.xlsx")
-                if os.path.exists(path):
-                    try:
-                        dft = pd.read_excel(path)
-                        # Tìm cột ngày
-                        c_n = find_col(dft, ["ngày", "date"])
-                        c_v = find_col(dft, ["vào", "start"])
-                        c_r = find_col(dft, ["ra", "end"])
-                        c_vt = find_col(dft, ["vị trí", "nơi"])
-                        
-                        if c_n:
-                            # Lọc ra dòng có ngày trùng khớp
-                            day_str = view_date.strftime("%Y-%m-%d")
-                            mask = dft[c_n].astype(str).str.contains(day_str, na=False)
-                            worked = dft[mask]
-                            
-                            for _, row in worked.iterrows():
-                                daily_report.append({
-                                    "Tên Zalo": s_zalo,
-                                    "Nhóm": s_group,
-                                    "Vị trí làm": row.get(c_vt, ""),
-                                    "Giờ vào": row.get(c_v, ""),
-                                    "Giờ ra": row.get(c_r, ""),
-                                    "ID": s_id
-                                })
-                    except: pass
-            
-            if daily_report:
-                st.dataframe(pd.DataFrame(daily_report))
-            else:
-                st.info(f"Không tìm thấy dữ liệu chấm công ngày {view_date.strftime('%d/%m/%Y')}")
-
-    # TAB 2: QUẢN LÝ CHI TIẾT (Logic cũ)
-    with tab2:
-        target_id = st.text_input("Nhập ID nhân viên cần xem:", placeholder="Ví dụ: nv01")
-        if target_id:
-            c.execute("SELECT zalo_name, group_name FROM users WHERE username=?", (target_id,))
-            info = c.fetchone()
-            if info:
-                st.success(f"Đang xem: **{info[0]}** (Nhóm: {info[1]})")
-                target_user = target_id
-            else:
-                st.error("Không tìm thấy nhân viên này.")
-                target_user = None
-        else: target_user = None
-
-# --- CHỨC NĂNG NHÂN VIÊN (STAFF) ---
-else:
-    target_user = current_user # Nhân viên tự xem chính mình
-
-# --- XỬ LÝ FILE EXCEL CỦA USER ĐƯỢC CHỌN ---
-if target_user:
-    u_path = os.path.join(STORAGE, target_user)
-    if not os.path.exists(u_path): os.makedirs(u_path)
-    excel_path = os.path.join(u_path, "salary.xlsx")
+    # 1. HỆ THỐNG CẢNH BÁO
+    now = datetime.now()
+    alerts = []
     
-    # Tạo file nếu chưa có
-    if not os.path.exists(excel_path):
-        pd.DataFrame(columns=["Ngày", "Vị trí", "Giờ vào", "Giờ ra", "Tổng lương", "Trạng thái"]).to_excel(excel_path, index=False)
+    c.execute("SELECT username, zalo_name FROM users WHERE role='staff'")
+    staffs = c.fetchall()
     
-    df = pd.read_excel(excel_path)
-    
-    # Tìm cột
-    c_ngay = find_col(df, ["ngày", "date"]) or "Ngày"
-    c_vt = find_col(df, ["vị trí", "nơi"]) or "Vị trí"
-    c_tl = find_col(df, ["tổng", "lương"]) or "Tổng lương"
-    c_tt = find_col(df, ["trạng thái", "nhận"]) or "Trạng thái"
-    c_vao = find_col(df, ["vào", "start"]) or "Giờ vào"
-    c_ra = find_col(df, ["ra", "end"]) or "Giờ ra"
+    for s_id, s_name in staffs:
+        p = os.path.join(STORAGE, s_id, "salary.xlsx")
+        if os.path.exists(p):
+            try:
+                df_s = pd.read_excel(p)
+                c_n = find_col(df_s, ["ngày"])
+                c_v = find_col(df_s, ["vào", "start"])
+                
+                if c_n and c_v:
+                    today_str = now.strftime("%Y-%m-%d")
+                    shifts = df_s[df_s[c_n].astype(str).str.contains(today_str, na=False)]
+                    for _, row in shifts.iterrows():
+                        time_str = str(row[c_v])
+                        try:
+                            h, m = map(int, time_str.split(':')[:2])
+                            shift_time = now.replace(hour=h, minute=m, second=0)
+                            diff = (shift_time - now).total_seconds() / 60
+                            if -15 < diff <= 60:
+                                status = "SẮP VÀO CA" if diff > 0 else "ĐÃ TRỄ GIỜ"
+                                alerts.append(f"⚠️ **{status} ({int(diff)}p nữa)**: {s_name} - Ca: {time_str}")
+                        except: pass
+            except: pass
 
-    # FORM THÊM CA (Cả Quản lý và Nhân viên đều dùng được)
-    with st.sidebar.form("add"):
-        st.write(f"### ➕ Thêm ca: {target_user}")
-        i_ng = st.date_input("Ngày", datetime.now())
-        i_vt = st.text_input("Vị trí làm")
-        c1, c2 = st.columns(2)
-        with c1: i_v = st.time_input("Vào")
-        with c2: i_r = st.time_input("Ra")
-        i_l = st.number_input("Lương/h", value=20000)
+    if alerts:
+        st.warning("### 📲 CẦN GỌI NHÂN VIÊN NGAY!")
+        for a in alerts: st.write(a)
+    else:
+        st.success("✅ Không có nhân viên nào sắp vào ca (trong 60p tới).")
+
+    st.divider()
+
+    # 2. XEM ĐIỂM DANH & XÁC NHẬN CÓ MẶT
+    st.subheader("📅 Điểm Danh & Xác Nhận Có Mặt")
+    col_d1, col_d2 = st.columns(2)
+    with col_d1: view_date = st.date_input("Chọn ngày:", datetime.now())
+    with col_d2: 
+        if st.button("🔄 Tải lại dữ liệu"): st.rerun()
+
+    daily_data = []
+    
+    for s_id, s_name in staffs:
+        p = os.path.join(STORAGE, s_id, "salary.xlsx")
+        if os.path.exists(p):
+            try:
+                dft = pd.read_excel(p)
+                c_n = find_col(dft, ["ngày"])
+                c_check = find_col(dft, ["xác nhận đến", "checkin"])
+                
+                if not c_check:
+                    dft["Xác nhận đến"] = False
+                    dft.to_excel(p, index=False)
+                    c_check = "Xác nhận đến"
+
+                if c_n:
+                    day_str = view_date.strftime("%Y-%m-%d")
+                    mask = dft[c_n].astype(str).str.contains(day_str, na=False)
+                    worked = dft[mask]
+                    
+                    for idx, row in worked.iterrows():
+                        c_vao = find_col(dft, ["vào"])
+                        c_ra = find_col(dft, ["ra"])
+                        hours = 0
+                        try:
+                            if c_vao and c_ra:
+                                t1 = datetime.strptime(str(row[c_vao]), "%H:%M")
+                                t2 = datetime.strptime(str(row[c_ra]), "%H:%M")
+                                hours = (t2 - t1).total_seconds() / 3600
+                        except: pass
+
+                        daily_data.append({
+                            "ID": s_id, "Tên": s_name,
+                            "Vị trí": row.get(find_col(dft, ["vị trí"]), ""),
+                            "Giờ vào": row.get(c_vao, ""), "Giờ ra": row.get(c_ra, ""),
+                            "Số giờ": round(hours, 2), "Đã đến": row.get(c_check, False),
+                            "File_Index": idx
+                        })
+            except: pass
+
+    if daily_data:
+        res_df = pd.DataFrame(daily_data)
+        st.write("### Danh sách ca làm hôm nay")
+        st.caption("✅ Tick vào ô 'Đã đến' để xác nhận nhân viên có mặt")
         
-        # Nếu là Admin thì mặc định chưa nhận, Staff thì được chọn
-        if current_role == 'admin': i_tt = "chưa nhận"
-        else: i_tt = st.selectbox("Trạng thái", ["chưa nhận", "nhận"])
-
-        if st.form_submit_button("Lưu ca"):
-            tg = (datetime.combine(i_ng, i_r) - datetime.combine(i_ng, i_v)).total_seconds() / 3600
-            row = {
-                c_ngay: i_ng.strftime("%Y-%m-%d"),
-                c_vt: i_vt, c_tl: tg*i_l, c_tt: i_tt,
-                c_vao: i_v.strftime("%H:%M"), c_ra: i_r.strftime("%H:%M")
-            }
-            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-            df.to_excel(excel_path, index=False)
-            st.success("Đã lưu!")
+        edited_df = st.data_editor(
+            res_df[["Tên", "Vị trí", "Giờ vào", "Giờ ra", "Số giờ", "Đã đến"]],
+            column_config={
+                "Đã đến": st.column_config.CheckboxColumn("Quản lý Xác nhận"),
+                "Số giờ": st.column_config.NumberColumn("Số giờ làm", format="%.2f h")
+            },
+            disabled=["Tên", "Vị trí", "Giờ vào", "Giờ ra", "Số giờ"],
+            hide_index=True,
+        )
+        
+        if st.button("💾 Lưu xác nhận điểm danh"):
+            for i, row in edited_df.iterrows():
+                original = daily_data[i]
+                if row["Đã đến"] != original["Đã đến"]:
+                    u_p = os.path.join(STORAGE, original["ID"], "salary.xlsx")
+                    u_df = pd.read_excel(u_p)
+                    c_chk = find_col(u_df, ["xác nhận đến", "checkin"])
+                    u_df.at[original["File_Index"], c_chk] = True
+                    u_df.to_excel(u_p, index=False)
+            st.success("Đã cập nhật trạng thái có mặt!")
             st.rerun()
 
-    # HIỂN THỊ BẢNG LƯƠNG
-    if current_role == 'admin' and tab1.title == "📅 Điểm danh theo ngày":
-         pass # Nếu đang ở Tab điểm danh thì không hiện bảng chi tiết ở dưới làm rối
+        st.write("---")
+        st.write("Phân loại giờ làm (Xanh: Đủ công, Đỏ: Thiếu công):")
+        st.dataframe(res_df[["Tên", "Số giờ"]].style.applymap(highlight_hours, subset=["Số giờ"]), use_container_width=True)
     else:
-        st.divider()
-        st.subheader(f"📋 Bảng lương chi tiết")
-        
-        # Lọc nợ
-        df_chua = df[df[c_tt].astype(str).str.lower().str.contains('chưa', na=False)].copy()
-        
-        if not df_chua.empty:
-            gr_loc = ["Tất cả"] + df_chua[c_vt].dropna().unique().tolist()
-            chon = st.selectbox("Lọc vị trí thanh toán:", gr_loc)
-            v_df = df_chua if chon == "Tất cả" else df_chua[df_chua[c_vt] == chon]
-            
-            t_no = pd.to_numeric(v_df[c_tl], errors='coerce').sum()
-            st.error(f"💰 TỔNG NỢ ({chon}): {t_no:,.0f} VNĐ")
-            
-            # Chỉ nhân viên mới được xác nhận nhận tiền
-            if current_role == 'staff':
-                if st.button("🚀 Xác nhận đã nhận TIỀN MẶT (Toàn bộ)"):
-                    df.loc[v_df.index, c_tt] = "nhận"
-                    df.to_excel(excel_path, index=False)
-                    st.rerun()
-                
-                # Nút sửa
-                edited = st.data_editor(v_df, use_container_width=True)
-                if st.button("Lưu sửa đổi"):
-                    df.update(edited)
-                    df.to_excel(excel_path, index=False)
-                    st.rerun()
-            else:
-                st.dataframe(v_df, use_container_width=True)
-        else:
-            st.success("Đã thanh toán hết!")
+        st.info("Chưa có ai đăng ký ca làm ngày này.")
 
-        with st.expander("Lịch sử toàn bộ"):
-            st.dataframe(df, use_container_width=True)
+# --- TÍNH NĂNG CHUNG (THÊM CA) ---
+target_user = user 
+if role == 'admin':
+    st.divider()
+    st.subheader("🔧 Công cụ Quản lý")
+    target_input = st.text_input("Nhập ID nhân viên để thêm ca hộ:", placeholder="Bỏ trống nếu thêm cho chính mình")
+    if target_input: target_user = target_input
+
+p_target = os.path.join(STORAGE, target_user)
+if not os.path.exists(p_target): os.makedirs(p_target)
+path_excel = os.path.join(p_target, "salary.xlsx")
+
+if not os.path.exists(path_excel):
+    pd.DataFrame(columns=["Ngày", "Vị trí", "Giờ vào", "Giờ ra", "Tổng lương", "Trạng thái", "Xác nhận đến"]).to_excel(path_excel, index=False)
+
+df = pd.read_excel(path_excel)
+c_tt = find_col(df, ["trạng thái", "nhận"]) or "Trạng thái"
+
+with st.sidebar.form("add"):
+    st.write(f"➕ Thêm ca cho: **{target_user}**")
+    i_ng = st.date_input("Ngày", datetime.now())
+    i_vt = st.text_input("Vị trí")
+    c1, c2 = st.columns(2)
+    with c1: i_v = st.time_input("Vào")
+    with c2: i_r = st.time_input("Ra")
+    i_l = st.number_input("Lương/h", value=20000)
+    i_st = st.selectbox("Trạng thái", ["chưa nhận", "nhận"]) if role == 'staff' else "chưa nhận"
+    
+    if st.form_submit_button("Lưu"):
+        t_start = datetime.combine(i_ng, i_v)
+        t_end = datetime.combine(i_ng, i_r)
+        h = (t_end - t_start).total_seconds() / 3600
+        
+        new = {
+            find_col(df, ["ngày"]) or "Ngày": i_ng.strftime("%Y-%m-%d"),
+            find_col(df, ["vị trí"]) or "Vị trí": i_vt,
+            find_col(df, ["tổng", "lương"]) or "Tổng lương": h * i_l,
+            c_tt: i_st,
+            find_col(df, ["vào"]) or "Giờ vào": i_v.strftime("%H:%M"),
+            find_col(df, ["ra"]) or "Giờ ra": i_r.strftime("%H:%M"),
+            "Xác nhận đến": False
+        }
+        df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
+        df.to_excel(path_excel, index=False)
+        st.success("Đã thêm ca!")
+        st.rerun()
+
+if role == 'staff':
+    st.header("📋 Bảng Lương Của Bạn")
+    st.dataframe(df)
