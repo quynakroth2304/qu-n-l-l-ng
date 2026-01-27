@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta
 
 # --- CẤU HÌNH HỆ THỐNG ---
-DB_FILE = "system_v11_full.db" # Database mới cho bản Full
+DB_FILE = "system_v12_speed.db" # Database mới cho bản tốc độ cao
 STORAGE = "user_files"
 if not os.path.exists(STORAGE): os.makedirs(STORAGE)
 
@@ -43,7 +43,7 @@ conn.commit()
 SUPER_ADMIN_USER = "admin_vip"
 SUPER_ADMIN_PASS = "vip888"
 
-st.set_page_config(page_title="Hệ Thống V11 Full", layout="wide", page_icon="🚀")
+st.set_page_config(page_title="Hệ Thống V12 Siêu Tốc", layout="wide", page_icon="⚡")
 
 # --- 2. HÀM HỖ TRỢ ---
 def find_col(df, keywords):
@@ -97,9 +97,10 @@ if "session" in st.query_params:
             st.session_state.expiry = ud[8]
 
 # ==========================================
-# PHẦN 4: GIAO DIỆN CHAT REAL-TIME (FRAGMENT)
+# PHẦN 4: GIAO DIỆN CHAT REAL-TIME (SIÊU TỐC 1S)
 # ==========================================
-@st.fragment(run_every=3)
+# ĐÃ CHỈNH LẠI THÀNH 1 GIÂY Ở ĐÂY 👇
+@st.fragment(run_every=1)
 def render_chat_box(room_id, current_user_name):
     c.execute("SELECT sender, content, timestamp FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,))
     msgs = c.fetchall()[::-1]
@@ -110,7 +111,7 @@ def render_chat_box(room_id, current_user_name):
         </style>
     """, unsafe_allow_html=True)
     
-    st.caption(f"🟢 Đang kết nối nhóm: {room_id} (Cập nhật mỗi 3s)")
+    st.caption(f"⚡ Kết nối siêu tốc: {room_id} (Update 1s/lần)")
     with st.container(height=400):
         for sender, content, ts in msgs:
             is_me = (sender == current_user_name)
@@ -122,7 +123,7 @@ def render_chat_box(room_id, current_user_name):
 # PHẦN 5: GIAO DIỆN CHÍNH
 # ==========================================
 if 'user' not in st.session_state:
-    st.title("🔐 Hệ Thống V11 (Full Option)")
+    st.title("🔐 Hệ Thống V12 (Speed 1s)")
     t_log, t_reg, t_super = st.tabs(["Đăng nhập", "Đăng ký", "Super Admin"])
     
     with t_super:
@@ -211,15 +212,15 @@ with tab_chat:
         rooms = [r[0] for r in c.fetchall()]
         if rooms: active_room = st.selectbox("Phòng chat:", rooms)
     
-    render_chat_box(active_room, zalo) # Fragment tự động cập nhật
+    render_chat_box(active_room, zalo) # Fragment tự động cập nhật mỗi 1s
 
     if prompt := st.chat_input("Nhập tin nhắn..."):
         ts_now = datetime.now().strftime("%H:%M %d/%m")
         c.execute("INSERT INTO messages (workplace_id, sender, content, timestamp) VALUES (?,?,?,?)", (active_room, zalo, prompt, ts_now))
         conn.commit()
-        st.success("Đã gửi!")
+        # Không cần success message để tránh làm phiền, tin nhắn sẽ tự hiện sau <1s
 
-# === TAB 2: CÔNG VIỆC (ĐẦY ĐỦ TÍNH NĂNG V10) ===
+# === TAB 2: CÔNG VIỆC (ĐẦY ĐỦ TÍNH NĂNG) ===
 with tab_work:
     if role == 'admin':
         # --- QUẢN LÝ ---
