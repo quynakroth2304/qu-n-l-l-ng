@@ -8,29 +8,12 @@ import shutil
 from datetime import datetime, timedelta
 
 # ==========================================
-# 🛑 KHU VỰC DỌN DẸP DỮ LIỆU CŨ (FIX LỖI)
+# 1. CẤU HÌNH HỆ THỐNG (V23 SECURE)
 # ==========================================
-# Danh sách các file DB cũ cần tiêu hủy
-old_dbs = [
-    "system_v20_full.db", "system_v19_test.db", "system_v18_new.db", 
-    "system_v17_reset.db", "system_v15_fixed.db", "system_v15_final.db"
-]
+st.set_page_config(page_title="Hệ Thống V23 (Bảo Mật)", layout="wide", page_icon="🛡️")
 
-# Chỉ chạy dọn dẹp 1 lần khi khởi động lại server
-if "cleaned_once" not in st.session_state:
-    st.cache_resource.clear() # Xóa cache kết nối cũ
-    for db in old_dbs:
-        if os.path.exists(db):
-            try:
-                os.remove(db)
-                print(f"❌ Đã xóa file cũ: {db}")
-            except: pass
-    st.session_state.cleaned_once = True
-
-# ==========================================
-# CẤU HÌNH HỆ THỐNG MỚI (V21)
-# ==========================================
-DB_FILE = "system_v21_ultra_clean.db" # Database mới tinh
+# Database mới - An toàn hơn
+DB_FILE = "system_v23_secure.db" 
 STORAGE = "user_files"
 IMG_FOLDER = "chat_uploads"
 
@@ -64,13 +47,13 @@ def init_db():
 
 init_db()
 
-# --- SUPER ADMIN ---
+# --- TÀI KHOẢN SUPER ADMIN ---
 SUPER_ADMIN_USER = "admin_vip"
 SUPER_ADMIN_PASS = "vip888"
 
-st.set_page_config(page_title="Hệ Thống V21 (Sạch Sẽ)", layout="wide", page_icon="✨")
-
-# --- HÀM HỖ TRỢ ---
+# ==========================================
+# 2. CÁC HÀM HỖ TRỢ
+# ==========================================
 def find_col(df, keywords):
     if isinstance(keywords, str): keywords = [keywords]
     for col in df.columns:
@@ -111,7 +94,7 @@ if "session" in st.query_params:
             st.session_state.wp_id = ud[5]; st.session_state.expiry = ud[8]
 
 # ==========================================
-# PHẦN GIAO DIỆN CHAT (REAL-TIME 1S)
+# 3. GIAO DIỆN CHAT (REAL-TIME 1S)
 # ==========================================
 @st.fragment(run_every=1)
 def render_chat_box(room_id, current_user_zalo):
@@ -124,10 +107,11 @@ def render_chat_box(room_id, current_user_zalo):
     st.markdown("""<style>.tagged { background-color: #ffe6e6; border: 2px solid #ff4d4d; padding: 10px; border-radius: 10px; color: #b30000; font-weight: bold; margin-bottom: 5px;}</style>""", unsafe_allow_html=True)
 
     with st.container(height=450):
-        if not msgs: st.info("👋 Nhóm mới tinh, chưa có tin nhắn!")
+        if not msgs: st.info("👋 Nhóm mới, chưa có tin nhắn.")
         for sender, content, ts, m_type in msgs:
             is_me = (sender == current_user_zalo)
             is_tagged = (m_type == 'text' and content and f"@{current_user_zalo}" in content)
+            
             with st.chat_message("user" if is_me else "assistant", avatar="👤" if is_me else "🤖"):
                 st.caption(f"{sender} • {ts}")
                 if m_type == 'image':
@@ -138,34 +122,34 @@ def render_chat_box(room_id, current_user_zalo):
                     else: st.write(content)
 
 # ==========================================
-# PHẦN ĐĂNG NHẬP / ĐĂNG KÝ
+# 4. ĐĂNG NHẬP / ĐĂNG KÝ
 # ==========================================
 if 'user' not in st.session_state:
-    st.title("🔐 Hệ Thống V21 (Sạch Sẽ)")
+    st.title("🛡️ Hệ Thống V23 (Bảo Mật)")
     t_log, t_reg, t_super = st.tabs(["Đăng nhập", "Đăng ký", "Super Admin"])
     
     with t_super:
         sa_u = st.text_input("User"); sa_p = st.text_input("Pass", type="password")
-        if st.button("Login Super"):
+        if st.button("Login Super Admin"):
             if sa_u == SUPER_ADMIN_USER and sa_p == SUPER_ADMIN_PASS:
                 st.session_state.user = "SUPER_ADMIN"; st.session_state.role = "super_admin"; st.rerun()
+            else: st.error("Sai tài khoản trùm!")
 
     with t_reg:
-        st.info("⚠️ Hệ thống đã được dọn dẹp. Hãy tạo tài khoản mới.")
+        st.caption("Tạo tài khoản mới (Database đã được nâng cấp bảo mật)")
         c1, c2 = st.columns(2)
         with c1: u_r = st.text_input("User ID", key="r_u"); z_r = st.text_input("Zalo Name", key="r_z"); p_r = st.text_input("Phone", key="r_p")
         with c2: pass_r = st.text_input("Pass", type="password", key="r_pa"); r_r = st.radio("Role", ["Nhân viên", "Quản lý"], horizontal=True)
-        wp_in = st.text_input("Mã Chi Nhánh (Nếu là NV)", key="r_w") if r_r == "Nhân viên" else "ADMIN"
+        wp_in = st.text_input("Mã Chi Nhánh (Do quản lý cấp)", key="r_w") if r_r == "Nhân viên" else "ADMIN"
         
         if st.button("Đăng ký"):
             try:
                 if r_r == "Nhân viên":
                     c.execute("SELECT id FROM workplaces WHERE id=?", (wp_in,))
-                    if not c.fetchone(): st.error("Mã chi nhánh chưa tồn tại (Quản lý cần tạo trước)!"); st.stop()
-                
+                    if not c.fetchone(): st.error("Mã chi nhánh không tồn tại!"); st.stop()
                 c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?)', (u_r, pass_r, 'admin' if r_r=="Quản lý" else 'staff', None, z_r, wp_in, p_r, None, "2000-01-01"))
-                conn.commit(); st.success("Đăng ký thành công! Mời qua tab Đăng nhập.")
-            except: st.error("Tên đăng nhập đã tồn tại.")
+                conn.commit(); st.success("Đăng ký thành công!"); 
+            except: st.error("ID đã tồn tại.")
 
     with t_log:
         u_l = st.text_input("User ID", key="l_u"); p_l = st.text_input("Pass", type="password", key="l_p")
@@ -193,31 +177,42 @@ with st.sidebar:
             st.query_params.clear()
         del st.session_state.user; st.rerun()
     
-    # Nút RESET KHẨN CẤP (Dành cho mọi user khi test)
-    st.divider()
-    if st.button("💣 XÓA DỮ LIỆU & LÀM LẠI TỪ ĐẦU", help="Bấm vào đây nếu muốn xóa sạch mọi thứ và đăng ký lại"):
-        st.cache_resource.clear()
-        try:
-            c.close()
-            conn.close()
-            if os.path.exists(DB_FILE): os.remove(DB_FILE)
-            st.success("Đã xóa sạch! Vui lòng F5 lại trang.")
-        except Exception as e: st.error(f"Lỗi: {e}")
+    # 🛑 ĐÃ XÓA NÚT RESET Ở ĐÂY 🛑
+    # Chỉ còn nút đăng xuất thôi. An toàn tuyệt đối.
 
-# --- SUPER ADMIN ---
+# --- SUPER ADMIN (NƠI DUY NHẤT CÓ QUYỀN XÓA) ---
 if role == 'super_admin':
-    st.header("🔑 SUPER ADMIN")
-    k_t = st.selectbox("Loại Key", [30, 365]); 
-    if st.button("Sinh Key"): 
-        k = str(uuid.uuid4())[:8].upper(); c.execute("INSERT INTO license_keys VALUES (?,?,?)", (k, k_t, "active")); conn.commit(); st.success(f"Key: {k}")
-    st.dataframe(pd.DataFrame(c.execute("SELECT * FROM license_keys").fetchall(), columns=["Key", "Days", "Status"]))
+    st.header("🔑 SUPER ADMIN (Vùng Quản Trị)")
+    
+    t1, t2 = st.tabs(["Quản Lý License Key", "⚠️ VÙNG NGUY HIỂM (RESET)"])
+    
+    with t1:
+        k_t = st.selectbox("Loại Key", [30, 365, 36500])
+        if st.button("Sinh Key Mới"):
+            key = str(uuid.uuid4())[:8].upper()
+            c.execute("INSERT INTO license_keys VALUES (?,?,?)", (key, k_t, "active")); conn.commit()
+            st.success(f"Key mới: {key}")
+        st.dataframe(pd.DataFrame(c.execute("SELECT * FROM license_keys").fetchall(), columns=["Key", "Days", "Status"]))
+    
+    with t2:
+        st.error("CẢNH BÁO: Đây là chức năng nguy hiểm. Chỉ dùng khi cần cài đặt lại toàn bộ hệ thống.")
+        confirm = st.checkbox("Tôi xác nhận muốn XÓA SẠCH dữ liệu")
+        if confirm:
+            if st.button("💣 KÍCH HOẠT HỦY DIỆT DỮ LIỆU"):
+                st.cache_resource.clear()
+                c.close(); conn.close()
+                if os.path.exists(DB_FILE): os.remove(DB_FILE)
+                # Xóa cả ảnh chat
+                if os.path.exists(IMG_FOLDER):
+                    for f in os.listdir(IMG_FOLDER): os.remove(os.path.join(IMG_FOLDER, f))
+                st.success("Đã Reset sạch sẽ hệ thống! Vui lòng F5."); time.sleep(2)
     st.stop()
 
-# --- CHECK LICENSE ---
+# --- CHECK LICENSE (ADMIN) ---
 if role == 'admin':
     days = (datetime.strptime(st.session_state.expiry or "2000-01-01", "%Y-%m-%d") - datetime.now()).days
     if days < 0:
-        st.error(f"🔒 Hết hạn!"); k_in = st.text_input("Nhập Key:")
+        st.error(f"🔒 TÀI KHOẢN HẾT HẠN!"); k_in = st.text_input("Nhập Key:")
         if st.button("Kích hoạt"):
             d = c.execute("SELECT duration_days FROM license_keys WHERE key_code=? AND status='active'", (k_in,)).fetchone()
             if d:
@@ -225,26 +220,26 @@ if role == 'admin':
                 c.execute("UPDATE users SET expiry_date=? WHERE username=?", (nex, user))
                 c.execute("UPDATE license_keys SET status='used' WHERE key_code=?", (k_in,)); conn.commit()
                 st.session_state.expiry = nex; st.rerun()
-            else: st.error("Lỗi Key!")
+            else: st.error("Key lỗi!")
         st.stop()
     else: st.sidebar.success(f"✅ Bản quyền: {days} ngày")
 
-# --- CHAT & WORK ---
-tab_chat, tab_work = st.tabs(["💬 Chat", "📊 Công Việc"])
+# --- MAIN TABS ---
+tab_chat, tab_work = st.tabs(["💬 Chat Team", "📊 Quản Lý"])
 
 with tab_chat:
     active_room = wp_id
     if role == 'admin':
         rooms = [r[0] for r in c.execute("SELECT id FROM workplaces").fetchall()]
-        if not rooms: st.warning("Tạo mã chi nhánh trước!"); 
-        else: active_room = st.selectbox("Phòng:", rooms)
+        if not rooms: st.warning("Vui lòng tạo Mã Chi Nhánh trước!"); 
+        else: active_room = st.selectbox("Chọn nhóm:", rooms)
     
     if active_room:
         render_chat_box(active_room, zalo)
         c1, c2 = st.columns([5, 1])
         with c1:
             if p := st.chat_input("Nhập tin (@tag)..."):
-                c.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", (active_room, zalo, p, datetime.now().strftime("%H:%M"), "text")); conn.commit(); st.rerun()
+                c.execute("INSERT INTO messages (workplace_id, sender, content, timestamp, msg_type) VALUES (?,?,?,?,?)", (active_room, zalo, p, datetime.now().strftime("%H:%M"), "text")); conn.commit()
         with c2:
             with st.popover("📎"):
                 ec = st.columns(4)
@@ -258,16 +253,16 @@ with tab_chat:
 
 with tab_work:
     if role == 'admin':
-        with st.expander("🏢 CẤU HÌNH"):
+        with st.expander("🏢 CẤU HÌNH CHI NHÁNH"):
             ni = st.text_input("Mã ID").upper(); nn = st.text_input("Tên")
             if st.button("Tạo"): 
                 try: c.execute("INSERT INTO workplaces VALUES (?,?,?)", (ni, nn, user)); conn.commit(); st.success(f"Tạo {ni}"); st.rerun()
-                except: st.error("Trùng!")
+                except: st.error("Trùng mã!")
             st.dataframe(pd.DataFrame(c.execute("SELECT id, name FROM workplaces").fetchall(), columns=["ID", "Name"]))
         
         staffs = c.execute("SELECT username, zalo_name, workplace_id, phone FROM users WHERE role='staff'").fetchall()
         total = sum([pd.to_numeric(load_excel_safe(os.path.join(STORAGE, s[0], "salary.xlsx"))[lambda d: d[find_col(d, "trạng thái")].astype(str).str.lower().str.contains("chưa", na=False)][find_col(load_excel_safe(os.path.join(STORAGE, s[0], "salary.xlsx")), "tổng")], errors='coerce').sum() for s in staffs]) if staffs else 0
-        st.metric("TỔNG NỢ", f"{total:,.0f} VNĐ")
+        st.metric("TỔNG NỢ LƯƠNG", f"{total:,.0f} VNĐ")
 
         if staffs:
             sel = st.selectbox("Chọn NV", [f"{s[1]} ({s[0]})" for s in staffs]); uid = sel.split("(")[1].replace(")","")
