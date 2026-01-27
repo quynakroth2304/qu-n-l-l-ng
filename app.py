@@ -7,10 +7,10 @@ import time
 from datetime import datetime, timedelta
 
 # --- CẤU HÌNH HỆ THỐNG ---
-# ĐỔI TÊN DB ĐỂ TẠO LẠI CẤU TRÚC MỚI (FIX LỖI)
-DB_FILE = "system_v15_final.db" 
+# ĐỔI TÊN DB ĐỂ FIX LỖI (QUAN TRỌNG)
+DB_FILE = "system_v15_fixed.db" 
 STORAGE = "user_files"
-IMG_FOLDER = "chat_uploads"
+IMG_FOLDER = "chat_uploads" 
 
 if not os.path.exists(STORAGE): os.makedirs(STORAGE)
 if not os.path.exists(IMG_FOLDER): os.makedirs(IMG_FOLDER)
@@ -23,7 +23,7 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# TẠO BẢNG DỮ LIỆU (CẤU TRÚC CHUẨN)
+# TẠO BẢNG DỮ LIỆU
 c.execute('''CREATE TABLE IF NOT EXISTS users
              (username TEXT PRIMARY KEY, password TEXT, role TEXT, 
               qr_path TEXT, zalo_name TEXT, workplace_id TEXT, phone TEXT,
@@ -35,7 +35,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS workplaces
 c.execute('''CREATE TABLE IF NOT EXISTS license_keys
              (key_code TEXT PRIMARY KEY, duration_days INTEGER, status TEXT)''')
 
-# Bảng tin nhắn có cột msg_type
+# Bảng tin nhắn (Có cột msg_type)
 c.execute('''CREATE TABLE IF NOT EXISTS messages
              (id INTEGER PRIMARY KEY AUTOINCREMENT, workplace_id TEXT, 
               sender TEXT, content TEXT, timestamp TEXT, msg_type TEXT)''')
@@ -48,7 +48,7 @@ conn.commit()
 SUPER_ADMIN_USER = "admin_vip"
 SUPER_ADMIN_PASS = "vip888"
 
-st.set_page_config(page_title="Hệ Thống V15 Final", layout="wide", page_icon="💬")
+st.set_page_config(page_title="Hệ Thống V15", layout="wide", page_icon="💬")
 
 # --- 2. HÀM HỖ TRỢ ---
 def find_col(df, keywords):
@@ -94,29 +94,25 @@ if "session" in st.query_params:
 # ==========================================
 @st.fragment(run_every=1)
 def render_chat_box(room_id, current_user_zalo):
-    # Lấy tin nhắn (Đảm bảo DB đã có msg_type)
+    # Lấy tin nhắn
     try:
         c.execute("SELECT sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,))
         msgs = c.fetchall()[::-1]
     except:
-        st.error("Lỗi dữ liệu chat. Vui lòng liên hệ Admin.")
+        st.error("Đang cập nhật Database... Vui lòng chờ giây lát.")
         return
 
     st.caption(f"⚡ Đang chat tại: **{room_id}** (Cập nhật 1s)")
     
-    # CSS cho Tag
     st.markdown("""
     <style>
         .tagged { background-color: #ffcccc; border: 2px solid red; padding: 5px; border-radius: 5px; font-weight: bold; color: darkred; }
-        .msg-img { border-radius: 10px; margin-top: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
     with st.container(height=500):
         for sender, content, ts, m_type in msgs:
             is_me = (sender == current_user_zalo)
-            
-            # LOGIC TAG: Nếu tên mình có trong nội dung -> Đổi giao diện
             is_tagged = False
             if m_type == 'text' and f"@{current_user_zalo}" in content:
                 is_tagged = True
@@ -126,9 +122,9 @@ def render_chat_box(room_id, current_user_zalo):
                 
                 if m_type == 'image':
                     if os.path.exists(content): st.image(content, width=250)
-                    else: st.warning("Ảnh không tồn tại")
+                    else: st.warning("Ảnh lỗi")
                 elif m_type == 'emoji':
-                    st.markdown(f"### {content}") 
+                    st.markdown(f"## {content}") 
                 else:
                     if is_tagged:
                         st.markdown(f'<div class="tagged">🔔 BẠN ĐƯỢC NHẮC TÊN:<br>{content}</div>', unsafe_allow_html=True)
