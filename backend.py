@@ -7,7 +7,7 @@ import shutil
 from datetime import datetime, timedelta
 
 # Cấu hình đường dẫn
-DB_FILE = "system_v45_full.db"
+DB_FILE = "system_v46_modern.db" # Đổi tên DB cho phiên bản mới
 STORAGE_DIR = "user_files"
 UPLOAD_DIR = "chat_uploads"
 
@@ -38,6 +38,7 @@ def load_excel_safe(file_path):
         df = pd.read_excel(file_path)
         for c in cols: 
             if c not in df.columns: df[c] = ""
+        # Đảm bảo trạng thái là chuỗi và không có NaN
         df["Trạng thái"] = df["Trạng thái"].fillna("chưa nhận").astype(str)
         df["Xác nhận đến"] = df["Xác nhận đến"].fillna(False)
         return df
@@ -50,7 +51,8 @@ def save_excel_safe(dataframe, file_path):
 
 # --- UTILS ---
 def get_avatar_url(name):
-    return f"https://ui-avatars.com/api/?name={name}&background=0ea5e9&color=fff&size=128&bold=true"
+    # Sử dụng API avatar đẹp hơn, màu sắc ngẫu nhiên
+    return f"https://ui-avatars.com/api/?name={name}&background=random&color=fff&size=128&bold=true&format=svg"
 
 def create_login_session(username):
     token = str(uuid.uuid4())
