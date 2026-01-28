@@ -200,7 +200,7 @@ with st.sidebar:
     st.markdown(f"<div style='color:var(--text-gray); font-weight:500;'>{role_display} | ID: {cu}</div>", unsafe_allow_html=True)
     
     if cwp and cwp not in ["ADMIN", "MASTER"]:
-        st.markdown(f"<div style='
+        st.markdown(f"""<div style='
             margin-top:15px; 
             padding:8px 12px; 
             background:#f1f5f9; 
@@ -211,7 +211,7 @@ with st.sidebar:
             align-items:center; 
             gap:8px;'>
             🏢 Chi nhánh: <b>{cwp}</b>
-        </div>", unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
     st.divider()
     # Nút đăng xuất màu đỏ nhẹ
