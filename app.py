@@ -9,7 +9,7 @@ import styles
 import backend
 
 # 1. Cấu hình
-st.set_page_config(page_title="Hệ Thống V49 Manual Backup", layout="wide", page_icon="💾", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Hệ Thống V50 Stable", layout="wide", page_icon="💎", initial_sidebar_state="expanded")
 styles.load_css()
 backend.init_db()
 
@@ -80,25 +80,28 @@ if st.session_state.user is None:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align:center; color:#2563eb;'>🛡️ HỆ THỐNG V49</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align:center; color:#2563eb;'>🛡️ HỆ THỐNG V50</h1>", unsafe_allow_html=True)
         t1, t2, t3 = st.tabs(["Login", "Sign Up", "Super Admin"])
         conn = backend.get_db_connection(); c = conn.cursor()
+        
+        # --- FIX LỖI DUPLICATE ID Ở ĐÂY (THÊM KEY) ---
         with t1:
-            u = st.text_input("User"); p = st.text_input("Pass", type="password")
-            if st.button("Login", type="primary", use_container_width=True):
+            u = st.text_input("User", key="login_u"); p = st.text_input("Pass", type="password", key="login_p")
+            if st.button("Login", type="primary", use_container_width=True, key="btn_login"):
                 ud = c.execute('SELECT * FROM users WHERE username=? AND password=?', (u, p)).fetchone()
                 if ud:
                     st.session_state.user=ud[0]; st.session_state.role=ud[2]; st.session_state.zalo=ud[4]; st.session_state.wp_id=ud[5]; st.session_state.expiry=ud[8]
                     tk = backend.create_login_session(ud[0]); st.query_params["session"] = tk; st.rerun()
                 else: st.error("Sai thông tin")
+        
         with t2:
             c_a, c_b = st.columns(2)
-            with c_a: ru = st.text_input("ID", key="r1"); rn = st.text_input("Tên", key="r2"); rp = st.text_input("SĐT", key="r3")
-            with c_b: rpass = st.text_input("Pass", type="password", key="r4"); rr = st.radio("Role", ["Nhân viên", "Quản lý"])
+            with c_a: ru = st.text_input("ID", key="reg_u"); rn = st.text_input("Tên", key="reg_n"); rp = st.text_input("SĐT", key="reg_p")
+            with c_b: rpass = st.text_input("Pass", type="password", key="reg_pass"); rr = st.radio("Role", ["Nhân viên", "Quản lý"], key="reg_role")
             rwp = "ADMIN"; rk = ""
-            if rr == "Nhân viên": rwp = st.text_input("Mã CN")
-            elif rr == "Quản lý": rk = st.text_input("Key Admin", type="password")
-            if st.button("Register", use_container_width=True):
+            if rr == "Nhân viên": rwp = st.text_input("Mã CN", key="reg_wp")
+            elif rr == "Quản lý": rk = st.text_input("Key Admin", type="password", key="reg_key")
+            if st.button("Register", use_container_width=True, key="btn_reg"):
                 try:
                     if rr=="Nhân viên" and not c.execute("SELECT id FROM workplaces WHERE id=?", (rwp,)).fetchone(): st.error("Mã CN sai"); st.stop()
                     if rr=="Quản lý":
@@ -110,9 +113,11 @@ if st.session_state.user is None:
                     backend.send_auto_backup_email(f"New User {ru}")
                     conn.commit(); st.success("OK! Login đi."); 
                 except: st.error("User trùng")
+        
         with t3:
-            su = st.text_input("Super User"); sp = st.text_input("Pass", type="password")
-            if st.button("Access", use_container_width=True):
+            # FIX LỖI DUPLICATE ID CHO SUPER ADMIN (THÊM KEY)
+            su = st.text_input("Super User", key="super_u"); sp = st.text_input("Pass", type="password", key="super_p")
+            if st.button("Access", use_container_width=True, key="btn_super"):
                 if su == SUPER_ADMIN_USER and sp == SUPER_ADMIN_PASS:
                     st.session_state.user="SUPER_ADMIN"; st.session_state.role="super_admin"; st.session_state.zalo="System"; st.session_state.wp_id="MASTER"; st.rerun()
                 else: st.error("Sai!")
@@ -133,46 +138,24 @@ with st.sidebar:
 
 if cr == 'super_admin':
     st.header("🔧 SUPER ADMIN")
-    # TẠO 3 TAB: QUẢN LÝ KEY - BACKUP/RESTORE - RESET
-    t1, t2, t3 = st.tabs(["🔑 Keys", "💾 Backup & Khôi Phục", "⚡ Reset"])
-    
+    t1, t2, t3 = st.tabs(["Keys", "Backup", "Reset"])
     with t1:
-        if st.button("Gửi Backup Email Ngay"): 
-            if backend.send_auto_backup_email("Manual Trigger"): st.success("Đã gửi mail!")
-            else: st.error("Lỗi mail")
+        if st.button("Test Mail"): 
+            if backend.send_auto_backup_email("Manual Trigger"): st.success("OK")
+            else: st.error("Error")
         st.divider()
         kt = st.selectbox("Key Type", ["30 Ngày", "365 Ngày", "Vĩnh viễn"]); 
         if st.button("Sinh Key"): k=str(uuid.uuid4())[:8].upper(); d=36500 if kt=="Vĩnh viễn" else (365 if kt=="365 Ngày" else 30); conn.execute("INSERT INTO license_keys VALUES (?,?,?)", (k, d, "active")); conn.commit(); st.success(k)
         st.dataframe(pd.read_sql("SELECT * FROM license_keys", conn))
     
-    # --- TÍNH NĂNG TẢI DỮ LIỆU THỦ CÔNG ---
     with t2:
-        st.info("💡 Bấm tải về máy tính để lưu trữ an toàn.")
-        
-        # 1. NÚT TẢI VỀ
-        zip_bytes = backend.create_backup_zip_bytes() # Gọi hàm tạo file zip từ backend
-        st.download_button(
-            label="⬇️ TẢI DỮ LIỆU VỀ MÁY (Backup.zip)",
-            data=zip_bytes,
-            file_name=f"backup_{datetime.now().strftime('%Y%m%d')}.zip",
-            mime="application/zip",
-            type="primary",
-            use_container_width=True
-        )
-        
+        zip_bytes = backend.create_backup_zip_bytes()
+        st.download_button("⬇️ Down Backup", zip_bytes, f"backup_{datetime.now().strftime('%Y%m%d')}.zip", "application/zip", type="primary")
         st.divider()
-        
-        # 2. NÚT KHÔI PHỤC (UPLOAD)
-        st.write("📂 **Khôi phục dữ liệu cũ:**")
-        uploaded_file = st.file_uploader("Chọn file backup (.zip) đã tải về trước đó", type="zip")
-        if uploaded_file:
-            if st.button("Khôi Phục Dữ Liệu Ngay", type="primary", use_container_width=True):
-                if backend.restore_backup_from_zip(uploaded_file):
-                    st.success("✅ Đã khôi phục thành công! Vui lòng đợi hệ thống khởi động lại...")
-                    time.sleep(2)
-                    st.rerun()
-                else:
-                    st.error("❌ File lỗi hoặc không đúng định dạng.")
+        uf = st.file_uploader("Upload Backup", type="zip")
+        if uf and st.button("Restore"):
+            if backend.restore_backup_from_zip(uf): st.success("OK! F5 lại web."); time.sleep(2); st.rerun()
+            else: st.error("Lỗi file")
 
     with t3:
         if st.button("💣 RESET ALL"): backend.hard_reset(); st.cache_resource.clear(); st.success("Done!"); st.stop()
