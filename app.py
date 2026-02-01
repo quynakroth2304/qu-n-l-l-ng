@@ -1,233 +1,303 @@
-# app.py
 import streamlit as st
 import pandas as pd
+import sqlite3
 import os
 import uuid
 import time
 from datetime import datetime, timedelta
-import styles
-import backend
 
-# 1. SETUP
-st.set_page_config(page_title="Messenger V52", layout="wide", page_icon="💬", initial_sidebar_state="expanded")
-styles.load_css()
-backend.init_db()
+# --- CẤU HÌNH TRANG ---
+st.set_page_config(page_title="System V62", layout="wide", page_icon="💎", initial_sidebar_state="collapsed")
 
-SUPER_ADMIN_USER = "admin"
-SUPER_ADMIN_PASS = "200607"
-
-# 2. SESSION
-if 'user' not in st.session_state:
-    token = st.query_params.get("session")
-    auto_user = backend.verify_session_token(token) if token else None
-    if auto_user:
-        conn = backend.get_db_connection()
-        ud = conn.execute('SELECT * FROM users WHERE username=?', (auto_user,)).fetchone(); conn.close()
-        if ud:
-            st.session_state.user=ud[0]; st.session_state.role=ud[2]; st.session_state.zalo=ud[4]; st.session_state.wp_id=ud[5]; st.session_state.expiry=ud[8]
-    else: st.session_state.user = None
-
-# 3. UI RENDERER (DARK MODE CHAT)
-@st.fragment(run_every=3)
-def render_chat(room_id, my_name, my_role):
-    conn = backend.get_db_connection()
-    msgs = conn.execute("SELECT id, sender, content, timestamp, msg_type FROM messages WHERE workplace_id=? ORDER BY id DESC LIMIT 50", (room_id,)).fetchall()[::-1]; conn.close()
+# --- 1. ÉP GIAO DIỆN V58 VÀO STREAMLIT (CSS) ---
+# Tôi lấy y nguyên CSS từ file index.html bạn gửi để đè lên giao diện Streamlit
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap');
     
-    st.markdown(f"<div style='text-align:center; color:#b0b3b8; font-size:12px; margin-bottom:15px;'>Đoạn chat tại <b>{room_id}</b></div>", unsafe_allow_html=True)
+    /* --- CORE THEME --- */
+    .stApp { background-color: #18191a; font-family: 'Segoe UI', sans-serif; }
     
-    html = '<div class="chat-container">'
-    last_sender = None
+    /* Ẩn Header/Footer mặc định của Streamlit */
+    header, footer {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
     
-    for mid, sender, content, ts, mtype in msgs:
-        is_me = (sender == my_name); align = "flex-end" if is_me else "flex-start"
-        
-        html += f'<div class="message-row { "msg-right" if is_me else "msg-left" }">'
-        
-        # Avatar (Chỉ hiện khi người khác nhắn)
-        if not is_me:
-            if sender != last_sender: html += f'<img src="{backend.get_avatar_url(sender)}" class="chat-avatar">'
-            else: html += '<div style="width:40px;"></div>' # Spacer để thẳng hàng
-        
-        body = ""
-        if mtype == 'payment_request':
-            # Render nút bấm
-            st.markdown(html, unsafe_allow_html=True); html = ""
-            with st.container():
-                c1, c2 = st.columns([1, 15] if not is_me else [15, 1])
-                with (c2 if not is_me else c1):
-                    st.markdown(f"""<style>div[data-testid="stVerticalBlock"] > div {{ align-items: {align}; display: flex; flex-direction: column; }}</style>""", unsafe_allow_html=True)
-                    st.markdown(f"""<div class="payment-bubble"><div style="font-weight:bold; color:#4ade80">💸 THANH TOÁN</div><div style="color:#b0b3b8">Quản lý <b>{sender}</b> chuyển lương:</div><div class="pay-amt">{int(float(content)):,.0f} đ</div></div>""", unsafe_allow_html=True)
-                    
-                    if my_role == 'staff' and not is_me:
-                        mf = os.path.join(backend.STORAGE_DIR, st.session_state.user, "salary.xlsx"); df = backend.load_excel_safe(mf)
-                        if len(df[df["Trạng thái"].str.lower()=="chờ xác nhận"]) > 0:
-                            if st.button("✅ Nhận Tiền", key=f"p_{mid}", type="primary"):
-                                df.loc[df["Trạng thái"].str.lower()=="chờ xác nhận", "Trạng thái"] = "đã nhận"; backend.save_excel_safe(df, mf)
-                                conn=backend.get_db_connection(); conn.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", (room_id, my_name, f"✅ Đã nhận: {int(float(content)):,.0f}", datetime.now().strftime("%H:%M"), "text")); conn.commit(); conn.close()
-                                backend.send_auto_backup_email(f"{my_name} nhan luong"); st.rerun()
-                        else: st.caption("✅ Đã hoàn tất")
-                    else: st.caption("⏳ Chờ...")
-        
-        elif mtype == 'image':
-            if os.path.exists(content):
-                import base64
-                with open(content, "rb") as f: b64 = base64.b64encode(f.read()).decode()
-                body = f'<img src="data:image/png;base64,{b64}" style="max-width:250px; border-radius:12px;">'
-            else: body = "<i>Ảnh đã xóa</i>"
-        elif mtype == 'call':
-            link = content.split('|')[-1]
-            body = f'<div style="background:#242526; padding:12px; border-radius:12px; border:1px solid #3e4042;">📹 <b>{sender}</b> đang gọi...<br><a href="{link}" target="_blank" style="color:#0084ff;font-weight:bold">Tham gia</a></div>'
-        else:
-            body = f'<div class="bubble bubble-{"right" if is_me else "left"}">{content}</div>'
+    /* --- CARD STYLE (Giống V58) --- */
+    div[data-testid="stVerticalBlock"] > div {
+        border-radius: 16px;
+    }
+    
+    .css-card {
+        background-color: #242526;
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid #393a3b;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        margin-bottom: 20px;
+    }
+    
+    /* --- INPUT FIELDS --- */
+    /* Ép kiểu ô nhập liệu cho giống Messenger */
+    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] > div, .stDateInput input, .stTimeInput input {
+        background-color: #3a3b3c !important;
+        color: #e4e6eb !important;
+        border: 1px solid #393a3b !important;
+        border-radius: 12px !important;
+        padding: 10px 15px !important;
+    }
+    
+    /* --- BUTTONS --- */
+    .stButton > button {
+        background-color: #0084ff !important;
+        color: white !important;
+        font-weight: bold !important;
+        border-radius: 12px !important;
+        border: none !important;
+        padding: 10px 20px !important;
+        transition: 0.2s;
+        width: 100%;
+    }
+    .stButton > button:hover { background-color: #0073e6 !important; transform: scale(0.98); }
+    
+    /* Nút phụ (Secondary) */
+    div[data-testid="column"] .stButton > button:nth-child(2) {
+        background-color: #3a3b3c !important;
+    }
 
-        if body: html += f'<div>{body}<div class="timestamp" style="text-align:{align}">{ts}</div></div>'
-        html += '</div>'; last_sender = sender
+    /* --- CHAT BUBBLES (HTML RENDER) --- */
+    .chat-container { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+    .msg-row { display: flex; width: 100%; align-items: flex-end; }
+    .me { justify-content: flex-end; } 
+    .you { justify-content: flex-start; }
+    
+    .avatar {
+        width: 32px; height: 32px; border-radius: 50%; margin-right: 8px; 
+        background: #555; display: flex; align-items: center; justify-content: center; 
+        font-size: 12px; color: white; flex-shrink: 0;
+    }
+    
+    .bubble {
+        padding: 10px 16px; border-radius: 18px; font-size: 15px; line-height: 1.4;
+        max-width: 75%; word-wrap: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .b-me { background: #0084ff; color: white; border-bottom-right-radius: 4px; }
+    .b-you { background: #3e4042; color: #e4e6eb; border-bottom-left-radius: 4px; }
+    
+    /* Payment Card */
+    .pay-card {
+        background: rgba(36, 37, 38, 0.95); border: 1px solid #42b72a;
+        padding: 15px; border-radius: 18px; min-width: 220px;
+    }
+    
+    /* --- METRIC BOX --- */
+    div[data-testid="stMetricValue"] { font-size: 26px; color: #0084ff; font-weight: 800; }
+    div[data-testid="stMetricLabel"] { color: #b0b3b8; }
+</style>
+""", unsafe_allow_html=True)
 
-    html += '</div>'
-    st.markdown(html, unsafe_allow_html=True)
-    st.markdown("""<script>var c=window.parent.document.querySelector('.chat-container');if(c)c.scrollTop=c.scrollHeight;</script>""", unsafe_allow_html=True)
+# --- 2. DATABASE & LOGIC ---
+DB_FILE = "system_v62.db"
 
-# 4. LOGIN
-if st.session_state.user is None:
+def get_db(): return sqlite3.connect(DB_FILE, check_same_thread=False)
+
+def init_db():
+    conn = get_db(); c = conn.cursor()
+    c.execute('CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT, name TEXT, branch TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS keys (key_code TEXT PRIMARY KEY, duration TEXT, status TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS salary (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, date TEXT, time_in TEXT, time_out TEXT, rate INTEGER, total INTEGER, status TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, branch TEXT, sender TEXT, content TEXT, type TEXT, timestamp TEXT)')
+    c.execute("INSERT OR IGNORE INTO users VALUES ('admin', '123', 'super_admin', 'BOSS', 'SYSTEM')")
+    conn.commit(); conn.close()
+
+init_db()
+
+# --- 3. GIAO DIỆN CHÍNH ---
+if 'user' not in st.session_state: st.session_state.user = None
+
+# MÀN HÌNH ĐĂNG NHẬP (STYLE CARD)
+if not st.session_state.user:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.markdown('<div class="login-box">', unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align:center; color:#0084ff;'>MESSENGER V52</h2>", unsafe_allow_html=True)
-        t1, t2, t3 = st.tabs(["Login", "Register", "Super"])
-        conn = backend.get_db_connection(); c = conn.cursor()
+        st.markdown("""
+        <div class="css-card" style="text-align:center">
+            <h2 style="color:#0084ff; margin:0">SYSTEM V62</h2>
+            <p style="color:#b0b3b8; font-size:14px">Quản Lý Nhân Sự & Tiền Lương</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        with t1:
-            u = st.text_input("Username", key="l_u"); p = st.text_input("Password", type="password", key="l_p")
-            if st.button("Đăng nhập", type="primary", use_container_width=True, key="btn_l"):
-                ud = c.execute('SELECT * FROM users WHERE username=? AND password=?', (u, p)).fetchone()
-                if ud:
-                    st.session_state.user=ud[0]; st.session_state.role=ud[2]; st.session_state.zalo=ud[4]; st.session_state.wp_id=ud[5]; st.session_state.expiry=ud[8]
-                    tk = backend.create_login_session(ud[0]); st.query_params["session"] = tk; st.rerun()
-                else: st.error("Sai thông tin")
+        tab_login, tab_reg = st.tabs(["Đăng Nhập", "Đăng Ký"])
         
-        with t2:
-            ru = st.text_input("ID", key="r_u"); rn = st.text_input("Tên", key="r_n"); rp = st.text_input("SĐT", key="r_p")
-            rpass = st.text_input("Pass", type="password", key="r_pw"); rr = st.radio("Role", ["Nhân viên", "Quản lý"], key="r_r")
-            rwp = "ADMIN"; rk = ""
-            if rr == "Nhân viên": rwp = st.text_input("Mã CN", key="r_cn")
-            else: rk = st.text_input("Key Admin", type="password", key="r_k")
+        with tab_login:
+            with st.container():
+                st.markdown('<div class="css-card">', unsafe_allow_html=True)
+                u = st.text_input("Tên đăng nhập")
+                p = st.text_input("Mật khẩu", type="password")
+                if st.button("ĐĂNG NHẬP NGAY"):
+                    conn = get_db(); row = conn.execute("SELECT * FROM users WHERE username=? AND password=?", (u,p)).fetchone(); conn.close()
+                    if row:
+                        st.session_state.user = row[0]; st.session_state.role = row[2]; st.session_state.name = row[3]; st.session_state.branch = row[4]
+                        st.rerun()
+                    else: st.error("Sai thông tin!")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        with tab_reg:
+            with st.container():
+                st.markdown('<div class="css-card">', unsafe_allow_html=True)
+                ru = st.text_input("ID (Viết liền)")
+                rn = st.text_input("Tên hiển thị")
+                rp = st.text_input("Mật khẩu mới", type="password")
+                rr = st.selectbox("Vai trò", ["staff", "admin"])
+                rk = st.text_input("Key (Admin) hoặc Mã CN (Staff)")
+                
+                if st.button("TẠO TÀI KHOẢN"):
+                    conn = get_db()
+                    if rr == 'admin':
+                        k = conn.execute("SELECT * FROM keys WHERE key_code=? AND status='active'", (rk,)).fetchone()
+                        if k:
+                            conn.execute("UPDATE keys SET status='used' WHERE key_code=?", (rk,))
+                            conn.execute("INSERT INTO users VALUES (?,?,?,?,?)", (ru, rp, rr, rn, 'PENDING'))
+                            conn.commit(); st.success("Thành công! Đăng nhập đi."); st.balloons()
+                        else: st.error("Key sai!")
+                    else:
+                        conn.execute("INSERT INTO users VALUES (?,?,?,?,?)", (ru, rp, rr, rn, rk))
+                        conn.commit(); st.success("Thành công!"); st.balloons()
+                    conn.close()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+# MÀN HÌNH CHÍNH (APP)
+else:
+    me = st.session_state.user; name = st.session_state.name; role = st.session_state.role; branch = st.session_state.branch
+    
+    # HEADER
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.markdown(f"### 👋 {name} <span style='font-size:14px;color:#b0b3b8'>({role}) | {branch}</span>", unsafe_allow_html=True)
+    with c2:
+        if st.button("🚪 Đăng xuất"): st.session_state.user = None; st.rerun()
+
+    # SUPER ADMIN PANEL
+    if role == 'super_admin':
+        st.markdown('<div class="css-card"><h3>💎 QUẢN LÝ KEY</h3>', unsafe_allow_html=True)
+        col1, col2 = st.columns([3, 1])
+        with col1: dur = st.selectbox("Thời hạn", ["1 Tháng", "1 Năm", "Vĩnh viễn"])
+        with col2: 
+            if st.button("Sinh Key"):
+                k = str(uuid.uuid4())[:8].upper()
+                conn = get_db(); conn.execute("INSERT INTO keys VALUES (?,?,'active')", (k, dur)); conn.commit(); conn.close()
+                st.success(f"KEY: {k}")
+        
+        conn = get_db(); df_k = pd.read_sql("SELECT * FROM keys", conn); conn.close()
+        st.dataframe(df_k, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ADMIN PANEL (Tạo chi nhánh)
+    elif role == 'admin' and branch == 'PENDING':
+        st.markdown('<div class="css-card"><h3>🏢 KHỞI TẠO CHI NHÁNH</h3>', unsafe_allow_html=True)
+        nb = st.text_input("Nhập Mã Chi Nhánh (VD: CN01)")
+        if st.button("XÁC NHẬN TẠO"):
+            conn = get_db(); conn.execute("UPDATE users SET branch=? WHERE username=?", (nb, me)); conn.commit(); conn.close()
+            st.session_state.branch = nb; st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # MAIN WORKSPACE
+    else:
+        tab_chat, tab_work = st.tabs(["💬 Tin Nhắn", "📊 Công Việc"])
+        
+        # --- TAB CHAT ---
+        with tab_chat:
+            # Render Chat bằng HTML để giống V58
+            conn = get_db(); msgs = conn.execute("SELECT * FROM msgs WHERE branch=? ORDER BY id DESC LIMIT 50", (branch,)).fetchall()[::-1]; conn.close()
             
-            if st.button("Đăng Ký", use_container_width=True, key="btn_r"):
-                try:
-                    if rr=="Nhân viên" and not c.execute("SELECT id FROM workplaces WHERE id=?", (rwp,)).fetchone(): st.error("Mã CN sai"); st.stop()
-                    if rr=="Quản lý":
-                        if not c.execute("SELECT key_code FROM license_keys WHERE key_code=? AND status='active'", (rk,)).fetchone(): st.error("Key lỗi"); st.stop()
-                        c.execute("UPDATE license_keys SET status='used' WHERE key_code=?", (rk,))
-                    
-                    op = os.path.join(backend.STORAGE_DIR, ru); 
-                    if os.path.exists(op): import shutil; shutil.rmtree(op)
-                    c.execute('INSERT INTO users VALUES (?,?,?,?,?,?,?,?,?)', (ru, rpass, 'admin' if rr=="Quản lý" else 'staff', None, rn, rwp, rp, None, "2099-01-01"))
-                    backend.send_auto_backup_email(f"New User {ru}")
-                    conn.commit(); st.success("OK! Login đi."); 
-                except: st.error("ID đã tồn tại")
-        
-        with t3:
-            su = st.text_input("Super User", key="s_u"); sp = st.text_input("Pass", type="password", key="s_p")
-            if st.button("Access", use_container_width=True, key="btn_s"):
-                if su == SUPER_ADMIN_USER and sp == SUPER_ADMIN_PASS:
-                    st.session_state.user="SUPER_ADMIN"; st.session_state.role="super_admin"; st.session_state.zalo="System"; st.session_state.wp_id="MASTER"; st.rerun()
-                else: st.error("Sai")
-        conn.close(); st.markdown('</div>', unsafe_allow_html=True)
-    st.stop()
-
-# 5. MAIN
-cu = st.session_state.user; cr = st.session_state.role; cz = st.session_state.zalo; cwp = st.session_state.wp_id
-conn = backend.get_db_connection()
-
-# SIDEBAR STYLE MESSENGER
-with st.sidebar:
-    st.image(backend.get_avatar_url(cz), width=80)
-    st.markdown(f"### {cz}")
-    st.caption(f"{cr} | {cu}")
-    if cwp not in ["ADMIN", "MASTER"]: st.info(f"🏢 {cwp}")
-    st.divider()
-    if st.button("Đăng xuất", use_container_width=True):
-        if "session" in st.query_params: conn.execute("DELETE FROM sessions WHERE token=?", (st.query_params["session"],)); conn.commit()
-        st.query_params.clear(); st.session_state.user=None; st.rerun()
-
-if cr == 'super_admin':
-    st.title("🔧 SUPER ADMIN"); t1, t2 = st.tabs(["Keys", "Data"])
-    with t1:
-        if st.button("Sinh Key", type="primary"): k=str(uuid.uuid4())[:8].upper(); conn.execute("INSERT INTO license_keys VALUES (?,365,'active')", (k,)); conn.commit(); st.success(k)
-        st.dataframe(pd.read_sql("SELECT * FROM license_keys", conn))
-    with t2:
-        st.download_button("⬇️ Tải Backup", backend.create_backup_zip_bytes(), "backup.zip", "application/zip")
-        uf = st.file_uploader("Restore", type="zip")
-        if uf and st.button("Khôi phục"): 
-            if backend.restore_backup(uf): st.success("OK! F5 lại web"); st.stop()
-    st.stop()
-
-# APP
-tc, tw = st.tabs(["💬 Chat", "📊 Công Việc"])
-
-with tc:
-    aroom = cwp if cr != 'admin' else st.selectbox("Chọn CN:", [r[0] for r in conn.execute("SELECT id FROM workplaces").fetchall()])
-    if aroom:
-        render_chat(aroom, cz, cr)
-        c1, c2 = st.columns([6, 1])
-        with c1: 
-            if m := st.chat_input("Nhập tin nhắn..."): 
-                conn.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", (aroom, cz, m, datetime.now().strftime("%H:%M"), "text")); conn.commit()
-        with c2:
-            with st.popover("➕", use_container_width=True):
-                if st.button("📹 Call"): l=f"https://meet.jit.si/{uuid.uuid4()}"; conn.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", (aroom, cz, f"v|{l}", datetime.now().strftime("%H:%M"), "call")); conn.commit(); st.rerun()
-                # Upload ảnh
-                u = st.file_uploader("", type=['jpg','png'], label_visibility="collapsed", key="u_img")
-                if u and st.button("Gửi"): 
-                    f=f"{uuid.uuid4()}.{u.name.split('.')[-1]}"; p=os.path.join(backend.UPLOAD_DIR, f)
-                    with open(p, "wb") as x: x.write(u.getbuffer())
-                    conn.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", (aroom, cz, p, datetime.now().strftime("%H:%M"), "image")); conn.commit(); st.rerun()
-
-with tw:
-    if cr == 'admin':
-        with st.expander("🏢 Quản Lý"):
-            c1, c2 = st.columns(2); nid = c1.text_input("Mã"); nnm = c2.text_input("Tên")
-            if c2.button("Tạo", type="primary"): 
-                try: conn.execute("INSERT INTO workplaces VALUES (?,?,?)", (nid, nnm, cu)); conn.commit(); st.success("OK")
-                except: st.error("Trùng")
-        
-        sl = conn.execute("SELECT username, zalo_name, workplace_id, phone FROM users WHERE role='staff'").fetchall()
-        if sl:
-            sel = st.selectbox("Nhân viên:", [f"{s[1]} ({s[0]})" for s in sl]); tid = sel.split('(')[1].split(')')[0]
-            tf = os.path.join(backend.STORAGE_DIR, tid, "salary.xlsx"); df = backend.load_excel_safe(tf)
-            pcount = len(df[df["Xác nhận đến"] == False]); debt = pd.to_numeric(df[~df["Trạng thái"].str.contains("đã nhận")]["Tổng lương"], errors='coerce').sum()
+            chat_html = '<div class="chat-container">'
+            for m in msgs:
+                is_me = (m[2] == me); cls = "me" if is_me else "you"; bub = "b-me" if is_me else "b-you"
+                ava = "" if is_me else f'<div class="avatar">{m[2][0].upper()}</div>'
+                
+                content = f'<div class="bubble {bub}">{m[3]}</div>'
+                if m[4] == 'pay':
+                    content = f'<div class="pay-card"><div style="color:#42b72a;font-weight:bold;font-size:12px">💸 YÊU CẦU THANH TOÁN</div><div style="color:#b0b3b8;font-size:13px">Quản lý {m[2]} chuyển:</div><div style="font-size:20px;font-weight:bold;color:white">{int(m[3]):,} đ</div></div>'
+                
+                chat_html += f'<div class="msg-row {cls}">{ava}{content}</div>'
+            chat_html += '</div>'
             
-            c1, c2 = st.columns(2); c1.metric("Nợ", f"{debt:,.0f}"); c2.metric("Chờ duyệt", pcount)
+            # Khung chat cuộn
+            with st.container(height=400):
+                st.markdown(chat_html, unsafe_allow_html=True)
             
-            if pcount > 0 and st.button("✅ Duyệt chấm công"): df.loc[df["Xác nhận đến"]==False, "Xác nhận đến"]=True; backend.save_excel_safe(df, tf); backend.send_auto_backup_email("Duyet cong"); st.rerun()
-            if debt > 0 and st.button("💸 Báo chuyển khoản"):
-                df.loc[~df["Trạng thái"].str.contains("đã nhận"), "Trạng thái"] = "chờ xác nhận"; backend.save_excel_safe(df, tf)
-                twp = [s[2] for s in sl if s[0]==tid][0]
-                conn.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", (twp, cz, str(debt), datetime.now().strftime("%H:%M"), "payment_request")); conn.commit(); st.success("Đã báo!"); st.rerun()
+            # Input bar
+            c1, c2 = st.columns([5, 1])
+            with c1: txt = st.chat_input("Nhập tin nhắn...")
+            with c2: 
+                if role == 'admin' and st.button("💸"):
+                    # Logic báo chuyển khoản
+                    pass 
             
-            with st.expander("Thêm ca"):
-                d=st.date_input("Ngày"); v=st.text_input("VT","Tại quán"); t1=st.time_input("In"); t2=st.time_input("Out"); r=st.number_input("Lương",20000)
-                if st.button("Lưu"):
-                    dt1=datetime.combine(d,t1); dt2=datetime.combine(d,t2); 
-                    if dt2<dt1: dt2+=timedelta(days=1)
-                    h=(dt2-dt1).seconds/3600; new=pd.DataFrame([{"Ngày":d.strftime("%Y-%m-%d"),"Vị trí":v,"Giờ vào":t1.strftime("%H:%M"),"Giờ ra":t2.strftime("%H:%M"),"Tổng lương":h*r,"Trạng thái":"chưa nhận","Xác nhận đến":True}])
-                    backend.save_excel_safe(pd.concat([df,new],ignore_index=True), tf); backend.send_auto_backup_email("Admin add shift"); st.success("OK"); st.rerun()
-            st.dataframe(df)
+            if txt:
+                conn = get_db(); conn.execute("INSERT INTO msgs (branch, sender, content, type, timestamp) VALUES (?,?,?,?,?)", 
+                                            (branch, me, txt, 'text', datetime.now().strftime('%H:%M'))); conn.commit(); conn.close()
+                st.rerun()
 
-    elif cr == 'staff':
-        mf = os.path.join(backend.STORAGE_DIR, cu, "salary.xlsx"); dfm = backend.load_excel_safe(mf)
-        debt = pd.to_numeric(dfm[~dfm["Trạng thái"].str.contains("đã nhận")]["Tổng lương"], errors='coerce').sum()
-        st.metric("Quán nợ:", f"{debt:,.0f}")
-        
-        if debt > 0 and st.button("🔔 Nhắc quản lý"): conn.execute("INSERT INTO messages VALUES (NULL,?,?,?,?,?)", (cwp, cz, f"Check lương: {debt:,.0f}", datetime.now().strftime("%H:%M"), "text")); conn.commit(); st.toast("Sent!")
-        
-        with st.expander("Báo cáo ca", expanded=True):
-            d=st.date_input("Ngày"); v=st.text_input("VT",cwp); t1=st.time_input("In"); t2=st.time_input("Out"); r=st.number_input("Lương",20000)
-            if st.button("Gửi báo cáo", type="primary"):
-                dt1=datetime.combine(d,t1); dt2=datetime.combine(d,t2); 
-                if dt2<dt1: dt2+=timedelta(days=1)
-                h=(dt2-dt1).seconds/3600; new=pd.DataFrame([{"Ngày":d.strftime("%Y-%m-%d"),"Vị trí":v,"Giờ vào":t1.strftime("%H:%M"),"Giờ ra":t2.strftime("%H:%M"),"Tổng lương":h*r,"Trạng thái":"chưa nhận","Xác nhận đến":False}])
-                backend.save_excel_safe(pd.concat([dfm,new],ignore_index=True), mf); backend.send_auto_backup_email("Staff report"); st.success("Lưu!"); st.rerun()
-        st.dataframe(dfm)
-
-conn.close()
+        # --- TAB CÔNG VIỆC ---
+        with tab_work:
+            # 1. Báo Cáo / Thêm Ca (Tính lương tự động)
+            st.markdown('<div class="css-card">', unsafe_allow_html=True)
+            st.subheader("📝 TÍNH LƯƠNG & CA LÀM")
+            
+            c1, c2 = st.columns(2)
+            d = c1.date_input("Ngày làm")
+            pos = c2.text_input("Vị trí", "Tại quán")
+            
+            c3, c4, c5 = st.columns(3)
+            t1 = c3.time_input("Giờ vào")
+            t2 = c4.time_input("Giờ ra")
+            rate = c5.number_input("Lương/1h", value=20000, step=1000)
+            
+            # Logic tính toán Real-time của Python
+            dt1 = datetime.combine(d, t1); dt2 = datetime.combine(d, t2)
+            if dt2 < dt1: dt2 += timedelta(days=1)
+            hours = (dt2 - dt1).seconds / 3600
+            total = int(hours * rate)
+            
+            st.markdown(f"<div style='text-align:right; color:#42b72a; font-weight:bold'>⏳ {hours:.1f}h x {rate:,} = {total:,} VNĐ</div>", unsafe_allow_html=True)
+            
+            target_u = me
+            if role == 'admin':
+                conn = get_db(); staffs = [r[0] for r in conn.execute("SELECT username FROM users WHERE branch=? AND role='staff'", (branch,)).fetchall()]; conn.close()
+                target_u = st.selectbox("Chọn nhân viên:", staffs) if staffs else None
+            
+            if st.button("LƯU CA LÀM VIỆC"):
+                if target_u:
+                    conn = get_db()
+                    conn.execute("INSERT INTO salary (username, date, time_in, time_out, rate, total, status) VALUES (?,?,?,?,?,?,?)",
+                                (target_u, str(d), str(t1), str(t2), rate, total, 'Chờ duyệt'))
+                    conn.commit(); conn.close()
+                    st.success("Đã lưu!"); time.sleep(1); st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # 2. Lịch sử & Duyệt
+            st.markdown('<div class="css-card">', unsafe_allow_html=True)
+            st.subheader("📜 LỊCH SỬ CHI TIẾT")
+            
+            conn = get_db()
+            if role == 'admin':
+                df = pd.read_sql(f"SELECT * FROM salary WHERE username IN (SELECT username FROM users WHERE branch='{branch}') ORDER BY id DESC", conn)
+            else:
+                df = pd.read_sql(f"SELECT * FROM salary WHERE username='{me}' ORDER BY id DESC", conn)
+            conn.close()
+            
+            if not df.empty:
+                st.dataframe(df[['date', 'username', 'total', 'status']], use_container_width=True)
+                
+                debt = df[df['status'] != 'Đã nhận']['total'].sum()
+                st.metric("TỔNG NỢ LƯƠNG", f"{debt:,} VNĐ")
+                
+                if role == 'admin' and st.button("✅ DUYỆT TẤT CẢ"):
+                    conn = get_db(); conn.execute(f"UPDATE salary SET status='Đã duyệt' WHERE username IN (SELECT username FROM users WHERE branch='{branch}')"); conn.commit(); conn.close()
+                    st.rerun()
+                
+                if role == 'staff' and st.button("💰 XÁC NHẬN ĐÃ NHẬN TIỀN"):
+                    conn = get_db(); conn.execute(f"UPDATE salary SET status='Đã nhận' WHERE username='{me}'"); conn.commit(); conn.close()
+                    st.rerun()
+            else:
+                st.info("Chưa có dữ liệu.")
+            st.markdown('</div>', unsafe_allow_html=True)
