@@ -4,123 +4,161 @@ import streamlit as st
 def load_css():
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap');
 
-        /* CẤU HÌNH MÀU SẮC CHỦ ĐẠO */
+        /* --- BIẾN MÀU SẮC MESSENGER DARK MODE --- */
         :root {
-            --primary: #2563eb;
-            --primary-light: #3b82f6;
-            --bg-color: #f8fafc;
-            --surface: #ffffff;
-            --text-main: #1e293b;
-            --text-sub: #64748b;
+            --bg-body: #18191a;         /* Nền chính đen xám */
+            --bg-sidebar: #242526;      /* Nền sidebar xám hơn chút */
+            --bg-card: #242526;         /* Nền các thẻ */
+            --text-primary: #e4e6eb;    /* Chữ trắng sáng */
+            --text-secondary: #b0b3b8;  /* Chữ xám mờ */
+            --bubble-me: #0084ff;       /* Xanh Messenger */
+            --bubble-you: #3e4042;      /* Xám bong bóng */
+            --input-bg: #3a3b3c;        /* Nền ô nhập liệu */
+            --border-color: #393a3b;    /* Viền mờ */
         }
 
+        /* --- CẤU HÌNH CHUNG --- */
         html, body, [class*="css"] {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
+            font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: var(--bg-body) !important;
+            color: var(--text-primary) !important;
         }
 
+        /* Ẩn Header/Footer mặc định */
         #MainMenu, footer, header {visibility: hidden;}
 
+        /* --- SIDEBAR --- */
         [data-testid="stSidebar"] {
-            background-color: var(--surface);
-            border-right: 1px solid #e2e8f0;
+            background-color: var(--bg-sidebar) !important;
+            border-right: 1px solid var(--border-color);
+        }
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+            color: var(--text-primary) !important;
+        }
+        [data-testid="stSidebar"] span {
+            color: var(--text-secondary);
         }
 
-        /* CARD DASHBOARD */
-        .metric-card {
-            background: var(--surface);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            border: 1px solid #e2e8f0;
-            text-align: center;
-            transition: transform 0.2s;
+        /* --- INPUT FIELDS (Ô nhập liệu tròn như Messenger) --- */
+        .stTextInput input, .stSelectbox div[data-baseweb="select"] > div {
+            background-color: var(--input-bg) !important;
+            color: var(--text-primary) !important;
+            border-radius: 20px !important;
+            border: none !important;
+            padding: 10px 15px !important;
         }
-        .metric-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .metric-value { font-size: 28px; font-weight: 700; color: var(--primary); margin-bottom: 5px; }
-        .metric-label { font-size: 13px; color: var(--text-sub); font-weight: 600; text-transform: uppercase; }
+        .stTextInput input::placeholder { color: var(--text-secondary); }
 
-        /* KHUNG CHAT (FIXED) */
+        /* --- NÚT BẤM (BUTTONS) --- */
+        .stButton > button {
+            background-color: var(--input-bg) !important;
+            color: var(--text-primary) !important;
+            border: none !important;
+            border-radius: 20px !important;
+            font-weight: 600 !important;
+            transition: 0.2s;
+        }
+        .stButton > button:hover {
+            background-color: #4e4f50 !important; /* Sáng hơn khi hover */
+        }
+        /* Nút chính (Primary) màu xanh */
+        .stButton > button[data-testid="baseButton-primary"] {
+            background-color: var(--bubble-me) !important;
+            color: white !important;
+        }
+
+        /* --- KHUNG CHAT (MESSENGER STYLE) --- */
         .chat-container {
-            padding: 20px;
-            background: var(--surface);
-            border-radius: 16px;
-            height: 78vh;
+            height: 75vh;
             overflow-y: auto;
-            border: 1px solid #e2e8f0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
+            background-color: var(--bg-body); /* Nền đen */
         }
-        
+
         .message-row {
             display: flex;
-            align-items: flex-end;
-            margin-bottom: 12px;
+            align-items: flex-end; /* Avatar nằm dưới cùng */
+            margin-bottom: 10px;
             width: 100%;
         }
 
-        /* BONG BÓNG CHAT (CHỐNG VỠ KHUNG TUYỆT ĐỐI) */
-        .bubble {
-            padding: 10px 16px;
-            border-radius: 18px;
-            display: inline-block;
-            max-width: 80%;
-            min-width: 30px;
-            text-align: left;
-            
-            /* Thuộc tính quan trọng để xuống dòng */
-            overflow-wrap: anywhere; 
-            word-break: break-word;
-            white-space: pre-wrap;
-            
-            font-size: 15px;
-            line-height: 1.5;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
+        /* Tin nhắn của Tôi (Phải - Xanh) */
         .msg-right { justify-content: flex-end; }
         .bubble-right {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            background-color: var(--bubble-me);
             color: white;
-            border-bottom-right-radius: 4px;
+            padding: 10px 15px;
+            border-radius: 18px 18px 4px 18px; /* Bo góc đặc trưng */
+            max-width: 75%;
+            width: fit-content;
+            font-size: 15px;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
         }
 
+        /* Tin nhắn Người khác (Trái - Xám) */
         .msg-left { justify-content: flex-start; }
         .bubble-left {
-            background: #f1f5f9;
-            color: var(--text-main);
-            border-bottom-left-radius: 4px;
-            border: 1px solid #e2e8f0;
+            background-color: var(--bubble-you);
+            color: var(--text-primary);
+            padding: 10px 15px;
+            border-radius: 18px 18px 18px 4px;
+            max-width: 75%;
+            width: fit-content;
+            font-size: 15px;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
         }
-        
+
         .chat-avatar {
-            width: 36px; height: 36px; border-radius: 50%;
-            margin-right: 8px; flex-shrink: 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 32px; height: 32px; border-radius: 50%;
+            margin-right: 8px; object-fit: cover;
         }
-
-        /* THẺ THANH TOÁN */
-        .payment-card {
-            background: #ecfdf5; border: 1px solid #86efac;
-            color: #14532d; padding: 15px; border-radius: 12px;
-            min-width: 250px; text-align: left;
-        }
-        .pay-amt { font-size: 24px; font-weight: 800; color: #16a34a; margin: 5px 0; }
-
-        /* BUTTONS */
-        .stButton > button {
-            border-radius: 8px; font-weight: 600; border: none; padding: 0.5rem 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s;
-        }
-        .stButton > button:hover { opacity: 0.9; transform: translateY(-1px); }
         
-        /* LOGIN CARD */
-        .login-box {
-            background: white; padding: 40px; border-radius: 20px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;
+        .timestamp { font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
+
+        /* --- THẺ THANH TOÁN (Dark Mode) --- */
+        .payment-bubble {
+            background-color: rgba(34, 197, 94, 0.2); /* Xanh lá trong suốt */
+            border: 1px solid #166534;
+            color: #86efac; /* Chữ xanh lá sáng */
+            padding: 15px;
+            border-radius: 15px;
+            min-width: 250px;
         }
+        .pay-amt { font-size: 24px; font-weight: bold; color: #4ade80; }
+
+        /* --- CARD THỐNG KÊ (Dashboard) --- */
+        .metric-card {
+            background-color: var(--bg-card);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+        .metric-value { font-size: 28px; font-weight: bold; color: var(--bubble-me); }
+        .metric-label { color: var(--text-secondary); font-size: 13px; }
+
+        /* --- LOGIN BOX --- */
+        .login-box {
+            background-color: var(--bg-card);
+            padding: 40px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        /* Chỉnh màu Tab */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: var(--bg-card);
+            border-radius: 10px;
+            padding: 5px;
+        }
+        .stTabs [data-baseweb="tab"] { color: var(--text-secondary); }
+        .stTabs [aria-selected="true"] { color: var(--bubble-me) !important; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
